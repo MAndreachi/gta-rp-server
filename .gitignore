@@ -72,3 +72,11 @@ logs/
 *.log
 dump.txt
 dumps/
+
+# Ignore all cache files
+cache/
+cache/**
+
+# Ignore specific FiveM generated files
+cache/files/
+cache/files/**
