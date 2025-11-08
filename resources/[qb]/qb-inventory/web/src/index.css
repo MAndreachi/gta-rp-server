@@ -83,4 +83,31 @@ body {
 	@apply h-10 px-8;
 }
 
+/* Custom scrollbar styling to match dark theme */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: #0f0f0f;
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+	background: #2a2a2a;
+	border-radius: 4px;
+	border: 1px solid #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: #3a3a3a;
+}
+
+/* Firefox scrollbar styling */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: #2a2a2a #0f0f0f;
+}
+
 

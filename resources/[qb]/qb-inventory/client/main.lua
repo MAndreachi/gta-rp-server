@@ -175,7 +175,7 @@ RegisterNetEvent('qb-inventory:server:RobPlayer', function(TargetId)
 end)
 
 RegisterNetEvent('qb-inventory:client:openInventory', function(items, other)
-    SetNuiFocus(true, true)
+    SetNuiFocus(true, false)
     SendNUIMessage({
         action = 'open',
         inventory = items,
