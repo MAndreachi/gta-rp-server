@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+	--background: 0 0% 100%;
+	--foreground: 222.2 84% 4.9%;
+	--muted: 210 40% 96.1%;
+	--muted-foreground: 215.4 16.3% 46.9%;
+	--popover: 0 0% 100%;
+	--popover-foreground: 222.2 84% 4.9%;
+	--card: 0 0% 100%;
+	--card-foreground: 222.2 84% 4.9%;
+	--border: 214.3 31.8% 91.4%;
+	--input: 214.3 31.8% 91.4%;
+	--primary: 222.2 47.4% 11.2%;
+	--primary-foreground: 210 40% 98%;
+	--secondary: 210 40% 96.1%;
+	--secondary-foreground: 222.2 47.4% 11.2%;
+	--accent: 210 40% 96.1%;
+	--accent-foreground: 222.2 47.4% 11.2%;
+	--destructive: 0 84.2% 60.2%;
+	--destructive-foreground: 210 40% 98%;
+	--ring: 215 20.2% 65.1%;
+	--radius: 0.5rem;
+}
+
+.dark {
+	--background: 222.2 84% 4.9%;
+	--foreground: 210 40% 98%;
+	--muted: 217.2 32.6% 17.5%;
+	--muted-foreground: 215 20.2% 65.1%;
+	--popover: 222.2 84% 4.9%;
+	--popover-foreground: 210 40% 98%;
+	--card: 222.2 84% 4.9%;
+	--card-foreground: 210 40% 98%;
+	--border: 217.2 32.6% 17.5%;
+	--input: 217.2 32.6% 17.5%;
+	--primary: 210 40% 98%;
+	--primary-foreground: 222.2 47.4% 11.2%;
+	--secondary: 217.2 32.6% 17.5%;
+	--secondary-foreground: 210 40% 98%;
+	--accent: 217.2 32.6% 17.5%;
+	--accent-foreground: 210 40% 98%;
+	--destructive: 0 62.8% 30.6%;
+	--destructive-foreground: 210 40% 98%;
+	--ring: 217.2 32.6% 17.5%;
+}
+
+html, body, #root {
+	height: 100%;
+}
+
+body {
+	@apply text-foreground antialiased;
+	background: transparent;
+}
+
+.nui-visible body { @apply bg-background; }
+
+#root { pointer-events: none; }
+.nui-visible #root { pointer-events: auto; }
+
+.btn {
+	@apply inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ring-offset-background;
+}
+.btn-primary {
+	@apply bg-primary text-primary-foreground hover:bg-primary/90;
+}
+.btn-secondary {
+	@apply bg-secondary text-secondary-foreground hover:bg-secondary/80;
+}
+.btn-ghost {
+	@apply hover:bg-accent hover:text-accent-foreground;
+}
+.btn-outline {
+	@apply border border-input bg-background hover:bg-accent hover:text-accent-foreground;
+}
+.btn-sm {
+	@apply h-8 px-3;
+}
+.btn-md {
+	@apply h-9 px-4 py-2;
+}
+.btn-lg {
+	@apply h-10 px-8;
+}
+
+

@@ -1,0 +1,167 @@
+:root {
+    /* Typography */
+    --font-primary: "Exo 2", sans-serif;
+    --font-weight-regular: 400;
+    --font-weight-medium: 500;
+    --font-weight-bold: 700;
+    --font-weight-light: 300;
+    /* Colors */
+    --md-primary: #1c75d2;
+    --md-primary-container: #6facec;
+    --md-error: #c10114;
+    --md-error-container: #fe4255;
+    --md-success: #20bb44;
+    --md-success-container: #6ae587;
+    --md-warning: #ff9800;
+    --md-warning-container: #ffc107;
+    --md-info: #2197f2;
+    --md-info-container: #7ac1f7;
+    --md-surface: #fffbff;
+    --md-on-surface: #1c1b1f;
+
+    /* Custom Variables */
+    --primary-bg: rgba(10, 10, 10, 0.85);
+    --active-bg: rgba(255, 255, 255, 0.08);
+    --font-color: #eaeaea;
+    --border-color: rgba(255, 255, 255, 0.10);
+    --border-color-active: rgba(255, 255, 255, 0.18);
+    --keycap-gradient-top: rgba(255, 255, 255, 0.08);
+    --keycap-gradient-bottom: rgba(255, 255, 255, 0.02);
+
+    /* Elevation */
+    --md-elevation-1: 0px 1px 3px 1px rgba(0, 0, 0, 0.25);
+
+    /* Border Radius */
+    --md-radius-small: 5px;
+    --md-radius-medium: 10px;
+    --md-radius-extra-small: 0.15rem;
+}
+
+#drawtext-container {
+    display: none;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
+    font-family: var(--font-primary) !important;
+    font-weight: var(--font-weight-light);
+}
+
+.text {
+    position: absolute;
+    background: var(--primary-bg);
+    color: var(--font-color);
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: 10px; /* shadcn-like rounded card */
+    box-shadow:
+        var(--md-elevation-1),
+        inset 0 0 0 1px var(--border-color); /* subtle inner border like shadcn card */
+    border: 1px solid var(--border-color);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    letter-spacing: 0.2px;
+    background-clip: padding-box; /* prevent background bleeding past radius */
+    overflow: hidden; /* hard-clip any backdrop/child effects to rounded corners */
+    white-space: nowrap;
+    pointer-events: none; /* non-interactive overlay */
+    transition: transform 0.12s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+@media (width: 3840px) and (height: 2160px) {
+    #drawtext-container {
+        display: none;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        padding: 0;
+        margin: 0;
+        font-family: var(--font-primary) !important;
+        font-weight: var(--font-weight-light);
+        font-size: 1.5vh;
+    }
+}
+
+.text.pressed {
+    border-color: var(--border-color-active); /* subtle active emphasis */
+    transform: scale(0.985);
+}
+
+/* Keycap styling for leading [E] (or any [KEY]) */
+.text .keycap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    font-weight: 600;
+    font-size: 12px;
+    line-height: 1;
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.06); /* shadcn-like muted surface */
+    border: 1px solid var(--border-color); /* subtle border */
+    border-radius: 6px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 1px 1px rgba(0, 0, 0, 0.35); /* small lift */
+}
+
+.text .label {
+    font-weight: 400;
+    font-size: 14px;
+    color: var(--font-color);
+}
+
+.top {
+    left: 45vw;
+    top: -100px;
+}
+
+.top.show {
+    transition: 0.5s;
+    top: 10px;
+    opacity: 1;
+}
+
+.top.hide {
+    transition: 0.5s;
+    top: -100px;
+    opacity: 0;
+}
+
+.right {
+    top: 50%;
+    right: -100px;
+}
+
+.right.show {
+    transition: 0.5s;
+    right: 10px;
+    opacity: 1;
+}
+
+.right.hide {
+    transition: 0.5s;
+    right: -100px;
+    opacity: 0;
+}
+
+.left {
+    top: 50%;
+    left: -100px;
+}
+
+.left.show {
+    transition: 0.5s;
+    left: 10px;
+    opacity: 1;
+}
+
+.left.hide {
+    transition: 0.5s;
+    left: -100px;
+    opacity: 0;
+}
