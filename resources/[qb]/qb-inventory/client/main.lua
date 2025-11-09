@@ -177,7 +177,7 @@ RegisterNetEvent('qb-inventory:server:RobPlayer', function(TargetId)
     })
 end)
 
-RegisterNetEvent('qb-inventory:client:openInventory', function(items, other)
+RegisterNetEvent('qb-inventory:client:openInventory', function(items, other, playerName)
     inventoryOpen = true
     SetNuiFocus(true, true)
     SetNuiFocusKeepInput(true)
@@ -186,7 +186,8 @@ RegisterNetEvent('qb-inventory:client:openInventory', function(items, other)
         inventory = items,
         slots = Config.MaxSlots,
         maxweight = Config.MaxWeight,
-        other = other
+        other = other,
+        playerName = playerName
     })
 end)
 
@@ -254,6 +255,11 @@ RegisterNUICallback('GetWeaponData', function(cData, cb)
         AttachmentData = FormatWeaponAttachments(cData.ItemData)
     }
     cb(data)
+end)
+
+RegisterNUICallback('OrganizeInventory', function(data, cb)
+    TriggerServerEvent('qb-inventory:server:organizeInventory', data.inventory, data.items)
+    cb('ok')
 end)
 
 RegisterNUICallback('RemoveAttachment', function(data, cb)

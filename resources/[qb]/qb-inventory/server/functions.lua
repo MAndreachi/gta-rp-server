@@ -528,7 +528,8 @@ function OpenInventoryById(source, targetId)
     }
     Wait(1500)
     Player(targetId).state.inv_busy = true
-    TriggerClientEvent('qb-inventory:client:openInventory', source, playerItems, formattedInventory)
+    local playerName = QBPlayer.PlayerData.charinfo and (QBPlayer.PlayerData.charinfo.firstname .. ' ' .. QBPlayer.PlayerData.charinfo.lastname) or GetPlayerName(source)
+    TriggerClientEvent('qb-inventory:client:openInventory', source, playerItems, formattedInventory, playerName)
 end
 
 exports('OpenInventoryById', OpenInventoryById)
@@ -600,7 +601,8 @@ function OpenShop(source, name)
         slots = #RegisteredShops[name].items,
         inventory = RegisteredShops[name].items
     }
-    TriggerClientEvent('qb-inventory:client:openInventory', source, Player.PlayerData.items, formattedInventory)
+    local playerName = Player.PlayerData.charinfo and (Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname) or GetPlayerName(source)
+    TriggerClientEvent('qb-inventory:client:openInventory', source, Player.PlayerData.items, formattedInventory, playerName)
 end
 
 exports('OpenShop', OpenShop)
@@ -615,7 +617,8 @@ function OpenInventory(source, identifier, data)
 
     if not identifier then
         Player(source).state.inv_busy = true
-        TriggerClientEvent('qb-inventory:client:openInventory', source, QBPlayer.PlayerData.items)
+        local playerName = QBPlayer.PlayerData.charinfo and (QBPlayer.PlayerData.charinfo.firstname .. ' ' .. QBPlayer.PlayerData.charinfo.lastname) or GetPlayerName(source)
+        TriggerClientEvent('qb-inventory:client:openInventory', source, QBPlayer.PlayerData.items, nil, playerName)
         return
     end
 
@@ -644,7 +647,8 @@ function OpenInventory(source, identifier, data)
         slots = inventory.slots,
         inventory = inventory.items
     }
-    TriggerClientEvent('qb-inventory:client:openInventory', source, QBPlayer.PlayerData.items, formattedInventory)
+    local playerName = QBPlayer.PlayerData.charinfo and (QBPlayer.PlayerData.charinfo.firstname .. ' ' .. QBPlayer.PlayerData.charinfo.lastname) or GetPlayerName(source)
+    TriggerClientEvent('qb-inventory:client:openInventory', source, QBPlayer.PlayerData.items, formattedInventory, playerName)
 end
 
 exports('OpenInventory', OpenInventory)
@@ -772,9 +776,8 @@ function AddItem(identifier, item, amount, slot, info, reason)
 
     if player then
         player.Functions.SetPlayerData('items', inventory)
-		if Player(identifier).state.inv_busy then
-			TriggerClientEvent('qb-inventory:client:updateInventory', identifier, inventory)
-        end
+		-- Always update inventory, not just when inventory is open
+		TriggerClientEvent('qb-inventory:client:updateInventory', identifier, inventory)
     end
     local invName = player and GetPlayerName(identifier) .. ' (' .. identifier .. ')' or identifier
     local addReason = reason or 'No reason specified'

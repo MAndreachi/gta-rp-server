@@ -237,13 +237,12 @@ RegisterNetEvent('qb-inventory:server:useItem', function(item)
         UseItem(itemData.name, src, itemData)
         TriggerClientEvent('qb-inventory:client:ItemBox', src, itemInfo, 'use')
     end
-    if Player(src).state.inv_busy then
-        local player = QBCore.Functions.GetPlayer(src)
-        if player then
-            TriggerClientEvent('qb-inventory:client:updateInventory', src, player.PlayerData.items)
-        else
-            TriggerClientEvent('qb-inventory:client:updateInventory', src)
-        end
+    -- Always update inventory after item use, not just when inventory is open
+    local player = QBCore.Functions.GetPlayer(src)
+    if player then
+        TriggerClientEvent('qb-inventory:client:updateInventory', src, player.PlayerData.items)
+    else
+        TriggerClientEvent('qb-inventory:client:updateInventory', src)
     end
 end)
 
@@ -266,7 +265,8 @@ RegisterNetEvent('qb-inventory:server:openDrop', function(dropId)
         inventory = drop.items
     }
     drop.isOpen = true
-    TriggerClientEvent('qb-inventory:client:openInventory', source, Player.PlayerData.items, formattedInventory)
+    local playerName = Player.PlayerData.charinfo and (Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname) or GetPlayerName(src)
+    TriggerClientEvent('qb-inventory:client:openInventory', source, Player.PlayerData.items, formattedInventory, playerName)
 end)
 
 RegisterNetEvent('qb-inventory:server:updateDrop', function(dropId, coords)
@@ -545,5 +545,29 @@ RegisterNetEvent('qb-inventory:server:SetInventoryData', function(fromInventory,
                 end
             end
         end
+    end
+end)
+
+RegisterNetEvent('qb-inventory:server:organizeInventory', function(inventoryType, items)
+    local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    if not Player then return end
+    
+    if inventoryType ~= 'player' then return end
+    
+    -- Convert items array to slot-based inventory
+    local organizedInventory = {}
+    for _, item in pairs(items) do
+        if item and item.slot then
+            organizedInventory[item.slot] = item
+        end
+    end
+    
+    -- Set the organized inventory
+    Player.Functions.SetPlayerData('items', organizedInventory)
+    
+    -- Update client inventory
+    if Player(src).state.inv_busy then
+        TriggerClientEvent('qb-inventory:client:updateInventory', src, organizedInventory)
     end
 end)
