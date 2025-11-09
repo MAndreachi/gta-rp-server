@@ -70,6 +70,10 @@ export default function App() {
 	const [attachItem, setAttachItem] = React.useState<InventoryItem | null>(null)
 	const [attachData, setAttachData] = React.useState<any>(null)
 
+	// Item notification queue state
+	const [notificationQueue, setNotificationQueue] = React.useState<Array<{ item: InventoryItem; type: 'add' | 'remove' | 'use'; amount: number; id: number; visible: boolean }>>([])
+	const notificationIdRef = React.useRef(0)
+
 	React.useEffect(() => {
 		function onMessage(e: MessageEvent) {
 			const msg = e as NuiMessage<any>
@@ -105,6 +109,48 @@ export default function App() {
 				}
 				case 'close': {
 					setVisible(false)
+					break
+				}
+				case 'itemBox': {
+					if (msg.data.item) {
+						const itemData = msg.data.item
+						const notificationType = msg.data.type || 'add'
+						const amount = msg.data.amount || 1
+						const id = ++notificationIdRef.current
+						
+						const notification = {
+							item: {
+								slot: 0,
+								name: itemData.name || '',
+								label: itemData.label || itemData.name || '',
+								amount: amount,
+								image: itemData.image || itemData.name
+							},
+							type: notificationType as 'add' | 'remove' | 'use',
+							amount: amount,
+							id: id,
+							visible: false
+						}
+						
+						// Add to queue (initially hidden)
+						setNotificationQueue(prev => {
+							const currentCount = prev.length
+							const delay = currentCount * 150
+							// Stagger the appearance: 150ms delay per notification
+							setTimeout(() => {
+								setNotificationQueue(current => 
+									current.map(n => n.id === id ? { ...n, visible: true } : n)
+								)
+							}, delay)
+							
+							// Auto-remove from queue after 3 seconds (plus delay)
+							setTimeout(() => {
+								setNotificationQueue(prev => prev.filter(n => n.id !== id))
+							}, 3000 + delay)
+							
+							return [...prev, notification]
+						})
+					}
 					break
 				}
 				default:
@@ -419,151 +465,169 @@ export default function App() {
 		}
 	}
 
-	if (!visible) return null
-
 	return (
-		<div className="fixed inset-0 pointer-events-none text-foreground flex items-center justify-center">
-			<div className="pointer-events-auto z-50 w-[46vw] max-w-3xl">
-				<Tooltip.Provider>
-					<div className="rounded-lg border-2 border-[#2a2a2a] bg-[#1a1a1a] p-4 shadow-2xl">
-						<div className="mb-3 flex items-center justify-between border-b border-[#2a2a2a] pb-2">
-							<h1 className="text-lg font-bold text-white">INVENTORY</h1>
-							<div className="flex items-center gap-2">
-								<div className="text-xs text-[#888]">{showHotbar ? 'Hotbar: On' : 'Hotbar: Off'}</div>
-								<button
-									onClick={closeInventory}
-									className="rounded-md bg-[#2a2a2a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3a3a3a] transition-colors"
-								>
-									Close
-								</button>
-							</div>
-						</div>
+		<>
+			{/* Item Notifications - Always visible */}
+			{notificationQueue.length > 0 && (
+				<div className="fixed top-4 right-4 z-[100] pointer-events-none flex flex-col gap-1.5">
+					{notificationQueue.map((notification, index) => (
+						<ItemNotification
+							key={notification.id}
+							notification={notification}
+							getItemIconUrl={getItemIconUrl}
+							onIconError={onIconError}
+							visible={notification.visible}
+						/>
+					))}
+				</div>
+			)}
 
-						<div className={cn('grid gap-4 max-h-[60vh] overflow-y-auto', otherName ? 'lg:grid-cols-2' : 'grid-cols-1')}>
-								<InventorySection
-									title="PLAYER"
-									slots={playerSlots}
-									inventory={playerInv}
-									type="player"
-									onSlotMouseDown={onSlotMouseDown}
-									onSlotMouseUp={onSlotMouseUp}
-									onItemDoubleClick={onItemDoubleClick}
-									onContextMenu={handleContextMenu}
-									getItemIconUrl={getItemIconUrl}
-									onIconError={onIconError}
-									contextMenuOpen={contextMenuOpen}
-									onContextMenuAction={handleContextMenuAction}
-									setContextMenuOpen={setContextMenuOpen}
-									onAttachments={openAttachments}
-								/>
-
-								{otherName && (
-									<InventorySection
-										title={otherLabel?.toUpperCase() ?? 'CONTAINER'}
-										slots={otherSlots}
-										inventory={otherInv}
-										type="other"
-										onSlotMouseDown={onSlotMouseDown}
-										onSlotMouseUp={onSlotMouseUp}
-										onItemDoubleClick={onItemDoubleClick}
-										onContextMenu={handleContextMenu}
-										getItemIconUrl={getItemIconUrl}
-										onIconError={onIconError}
-										contextMenuOpen={contextMenuOpen}
-										onContextMenuAction={handleContextMenuAction}
-										setContextMenuOpen={setContextMenuOpen}
-										onAttachments={openAttachments}
-									/>
-								)}
-							</div>
-						</div>
-
-						{/* Split amount dialog */}
-						<Dialog.Root open={splitOpen} onOpenChange={setSplitOpen}>
-							<Dialog.Portal>
-								<Dialog.Overlay className="fixed inset-0 bg-black/60" />
-								<Dialog.Content className="fixed left-1/2 top-1/2 w-[92vw] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border-2 border-[#2a2a2a] bg-[#1a1a1a] p-5 shadow-xl focus:outline-none">
-									<Dialog.Title className="text-base font-semibold text-white">Split Stack</Dialog.Title>
-									<div className="mt-4 space-y-3">
-										<input
-											type="number"
-											min={1}
-											max={splitMax}
-											value={splitAmount}
-											onChange={(e) => setSplitAmount(Number(e.target.value))}
-											className="w-full rounded-md border-2 border-[#2a2a2a] bg-[#0f0f0f] px-3 py-2 text-sm text-white focus:border-[#4a4a4a] focus:outline-none"
-										/>
-										<input
-											type="range"
-											min={1}
-											max={splitMax}
-											value={splitAmount}
-											onChange={(e) => setSplitAmount(Number(e.target.value))}
-											className="w-full accent-[#4a4a4a]"
-										/>
-										<div className="text-xs text-[#888]">Amount: {splitAmount} / {splitMax}</div>
-									</div>
-									<div className="mt-5 flex justify-end gap-2">
+			{/* Inventory Window - Only visible when open */}
+			{visible && (
+				<div className="fixed inset-0 pointer-events-none text-foreground flex items-center justify-center">
+					<div className="pointer-events-auto z-50 w-[46vw] max-w-3xl">
+						<Tooltip.Provider>
+							<div className="rounded-lg border-2 border-[#2a2a2a] bg-[#1a1a1a] p-4 shadow-2xl">
+								<div className="mb-3 flex items-center justify-between border-b border-[#2a2a2a] pb-2">
+									<h1 className="text-lg font-bold text-white">INVENTORY</h1>
+									<div className="flex items-center gap-2">
+										<div className="text-xs text-[#888]">{showHotbar ? 'Hotbar: On' : 'Hotbar: Off'}</div>
 										<button
-											className="rounded-md border-2 border-[#2a2a2a] bg-[#0f0f0f] px-4 py-2 text-sm font-medium text-white hover:bg-[#2a2a2a] transition-colors"
-											onClick={() => setSplitOpen(false)}
-										>
-											Cancel
-										</button>
-										<button
-											className="rounded-md bg-[#2a2a2a] px-4 py-2 text-sm font-medium text-white hover:bg-[#3a3a3a] transition-colors"
-											onClick={submitSplit}
-										>
-											Split
-										</button>
-									</div>
-								</Dialog.Content>
-							</Dialog.Portal>
-						</Dialog.Root>
-
-						{/* Attachments dialog */}
-						<Dialog.Root open={attachOpen} onOpenChange={setAttachOpen}>
-							<Dialog.Portal>
-								<Dialog.Overlay className="fixed inset-0 bg-black/60" />
-								<Dialog.Content className="fixed left-1/2 top-1/2 w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border-2 border-[#2a2a2a] bg-[#1a1a1a] p-5 shadow-xl focus:outline-none">
-									<Dialog.Title className="text-base font-semibold text-white">Attachments</Dialog.Title>
-									<div className="mt-3">
-										{!attachData ? (
-											<div className="text-sm text-[#888]">No data</div>
-										) : (
-											<div className="space-y-2">
-												{Array.isArray(attachData.Attachments) && attachData.Attachments.length > 0 ? (
-													attachData.Attachments.map((att: any, idx: number) => (
-														<div key={idx} className="flex items-center justify-between rounded-md border border-[#2a2a2a] bg-[#0f0f0f] p-2">
-															<div className="text-sm text-white">{att.label ?? att.attachment}</div>
-															<button
-																className="rounded-md border-2 border-[#2a2a2a] bg-[#0f0f0f] px-3 py-1 text-sm font-medium text-white hover:bg-[#2a2a2a] transition-colors"
-																onClick={() => removeAttachment(attachData, att)}
-															>
-																Remove
-															</button>
-														</div>
-													))
-												) : (
-													<div className="text-sm text-[#888]">No attachments</div>
-												)}
-											</div>
-										)}
-									</div>
-									<div className="mt-4 flex justify-end">
-										<button
-											className="rounded-md bg-[#2a2a2a] px-4 py-2 text-sm font-medium text-white hover:bg-[#3a3a3a] transition-colors"
-											onClick={() => setAttachOpen(false)}
+											onClick={closeInventory}
+											className="rounded-md bg-[#2a2a2a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3a3a3a] transition-colors"
 										>
 											Close
 										</button>
 									</div>
-								</Dialog.Content>
-							</Dialog.Portal>
-						</Dialog.Root>
-				</Tooltip.Provider>
-			</div>
-		</div>
+								</div>
+
+								<div className={cn('grid gap-4 max-h-[60vh] overflow-y-auto', otherName ? 'lg:grid-cols-2' : 'grid-cols-1')}>
+										<InventorySection
+											title="PLAYER"
+											slots={playerSlots}
+											inventory={playerInv}
+											type="player"
+											onSlotMouseDown={onSlotMouseDown}
+											onSlotMouseUp={onSlotMouseUp}
+											onItemDoubleClick={onItemDoubleClick}
+											onContextMenu={handleContextMenu}
+											getItemIconUrl={getItemIconUrl}
+											onIconError={onIconError}
+											contextMenuOpen={contextMenuOpen}
+											onContextMenuAction={handleContextMenuAction}
+											setContextMenuOpen={setContextMenuOpen}
+											onAttachments={openAttachments}
+										/>
+
+										{otherName && (
+											<InventorySection
+												title={otherLabel?.toUpperCase() ?? 'CONTAINER'}
+												slots={otherSlots}
+												inventory={otherInv}
+												type="other"
+												onSlotMouseDown={onSlotMouseDown}
+												onSlotMouseUp={onSlotMouseUp}
+												onItemDoubleClick={onItemDoubleClick}
+												onContextMenu={handleContextMenu}
+												getItemIconUrl={getItemIconUrl}
+												onIconError={onIconError}
+												contextMenuOpen={contextMenuOpen}
+												onContextMenuAction={handleContextMenuAction}
+												setContextMenuOpen={setContextMenuOpen}
+												onAttachments={openAttachments}
+											/>
+										)}
+									</div>
+								</div>
+
+								{/* Split amount dialog */}
+								<Dialog.Root open={splitOpen} onOpenChange={setSplitOpen}>
+									<Dialog.Portal>
+										<Dialog.Overlay className="fixed inset-0 bg-black/60" />
+										<Dialog.Content className="fixed left-1/2 top-1/2 w-[92vw] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border-2 border-[#2a2a2a] bg-[#1a1a1a] p-5 shadow-xl focus:outline-none">
+											<Dialog.Title className="text-base font-semibold text-white">Split Stack</Dialog.Title>
+											<div className="mt-4 space-y-3">
+												<input
+													type="number"
+													min={1}
+													max={splitMax}
+													value={splitAmount}
+													onChange={(e) => setSplitAmount(Number(e.target.value))}
+													className="w-full rounded-md border-2 border-[#2a2a2a] bg-[#0f0f0f] px-3 py-2 text-sm text-white focus:border-[#4a4a4a] focus:outline-none"
+												/>
+												<input
+													type="range"
+													min={1}
+													max={splitMax}
+													value={splitAmount}
+													onChange={(e) => setSplitAmount(Number(e.target.value))}
+													className="w-full accent-[#4a4a4a]"
+												/>
+												<div className="text-xs text-[#888]">Amount: {splitAmount} / {splitMax}</div>
+											</div>
+											<div className="mt-5 flex justify-end gap-2">
+												<button
+													className="rounded-md border-2 border-[#2a2a2a] bg-[#0f0f0f] px-4 py-2 text-sm font-medium text-white hover:bg-[#2a2a2a] transition-colors"
+													onClick={() => setSplitOpen(false)}
+												>
+													Cancel
+												</button>
+												<button
+													className="rounded-md bg-[#2a2a2a] px-4 py-2 text-sm font-medium text-white hover:bg-[#3a3a3a] transition-colors"
+													onClick={submitSplit}
+												>
+													Split
+												</button>
+											</div>
+										</Dialog.Content>
+									</Dialog.Portal>
+								</Dialog.Root>
+
+								{/* Attachments dialog */}
+								<Dialog.Root open={attachOpen} onOpenChange={setAttachOpen}>
+									<Dialog.Portal>
+										<Dialog.Overlay className="fixed inset-0 bg-black/60" />
+										<Dialog.Content className="fixed left-1/2 top-1/2 w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border-2 border-[#2a2a2a] bg-[#1a1a1a] p-5 shadow-xl focus:outline-none">
+											<Dialog.Title className="text-base font-semibold text-white">Attachments</Dialog.Title>
+											<div className="mt-3">
+												{!attachData ? (
+													<div className="text-sm text-[#888]">No data</div>
+												) : (
+													<div className="space-y-2">
+														{Array.isArray(attachData.Attachments) && attachData.Attachments.length > 0 ? (
+															attachData.Attachments.map((att: any, idx: number) => (
+																<div key={idx} className="flex items-center justify-between rounded-md border border-[#2a2a2a] bg-[#0f0f0f] p-2">
+																	<div className="text-sm text-white">{att.label ?? att.attachment}</div>
+																	<button
+																		className="rounded-md border-2 border-[#2a2a2a] bg-[#0f0f0f] px-3 py-1 text-sm font-medium text-white hover:bg-[#2a2a2a] transition-colors"
+																		onClick={() => removeAttachment(attachData, att)}
+																	>
+																		Remove
+																	</button>
+																</div>
+															))
+														) : (
+															<div className="text-sm text-[#888]">No attachments</div>
+														)}
+													</div>
+												)}
+											</div>
+											<div className="mt-4 flex justify-end">
+												<button
+													className="rounded-md bg-[#2a2a2a] px-4 py-2 text-sm font-medium text-white hover:bg-[#3a3a3a] transition-colors"
+													onClick={() => setAttachOpen(false)}
+												>
+													Close
+												</button>
+											</div>
+										</Dialog.Content>
+									</Dialog.Portal>
+								</Dialog.Root>
+						</Tooltip.Provider>
+					</div>
+				</div>
+			)}
+		</>
 	)
 }
 
@@ -748,6 +812,64 @@ function formatKey(key: string) {
 
 async function openAttachments(item?: InventoryItem | null) {
 	// no-op placeholder, real handler replaced at runtime
+}
+
+function ItemNotification({
+	notification,
+	getItemIconUrl,
+	onIconError,
+	visible
+}: {
+	notification: { item: InventoryItem; type: 'add' | 'remove' | 'use'; amount: number; id: number; visible: boolean }
+	getItemIconUrl: (item?: InventoryItem | null) => string | undefined
+	onIconError: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void
+	visible: boolean
+}) {
+	const typeLabels = {
+		add: 'RECEIVED',
+		remove: 'REMOVED',
+		use: 'USED'
+	}
+
+	const typeColors = {
+		add: 'text-green-400',
+		remove: 'text-red-400',
+		use: 'text-blue-400'
+	}
+
+	return (
+		<div className={cn(
+			"transition-all duration-300 ease-out",
+			visible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-full"
+		)}>
+			<div className="rounded-lg border-2 border-[#2a2a2a] bg-[#1a1a1a] p-3 shadow-2xl min-w-[200px]">
+				<div className="flex items-center gap-3">
+					{/* Item image */}
+					<div className="flex-shrink-0 w-12 h-12 rounded border border-[#2a2a2a] bg-[#0f0f0f] flex items-center justify-center p-2">
+						<img
+							src={getItemIconUrl(notification.item) || ''}
+							onError={onIconError}
+							alt=""
+							className="max-h-full max-w-full object-contain"
+						/>
+					</div>
+
+					{/* Item info */}
+					<div className="flex-1 min-w-0">
+						<div className={cn('text-xs font-bold uppercase', typeColors[notification.type])}>
+							{typeLabels[notification.type]}
+						</div>
+						<div className="text-sm font-semibold text-white truncate">
+							{notification.item.label || notification.item.name}
+						</div>
+						{notification.amount > 1 && (
+							<div className="text-xs text-[#888]">x{notification.amount}</div>
+						)}
+					</div>
+				</div>
+			</div>
+		</div>
+	)
 }
 
 
