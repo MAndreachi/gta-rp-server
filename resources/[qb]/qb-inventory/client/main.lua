@@ -1,6 +1,7 @@
 QBCore = exports['qb-core']:GetCoreObject()
 PlayerData = nil
 local hotbarShown = false
+local inventoryOpen = false
 
 -- Handlers
 
@@ -134,6 +135,8 @@ RegisterNetEvent('qb-inventory:client:hotbar', function(items)
 end)
 
 RegisterNetEvent('qb-inventory:client:closeInv', function()
+    inventoryOpen = false
+    SetNuiFocus(false, false)
     SendNUIMessage({
         action = 'close',
     })
@@ -175,7 +178,9 @@ RegisterNetEvent('qb-inventory:server:RobPlayer', function(TargetId)
 end)
 
 RegisterNetEvent('qb-inventory:client:openInventory', function(items, other)
-    SetNuiFocus(true, false)
+    inventoryOpen = true
+    SetNuiFocus(true, true)
+    SetNuiFocusKeepInput(true)
     SendNUIMessage({
         action = 'open',
         inventory = items,
@@ -205,6 +210,7 @@ RegisterNUICallback('AttemptPurchase', function(data, cb)
 end)
 
 RegisterNUICallback('CloseInventory', function(data, cb)
+    inventoryOpen = false
     SetNuiFocus(false, false)
 	local invName = data and data.name or nil
 	if invName and invName:find('trunk%-') then
@@ -328,3 +334,33 @@ end
 
 RegisterKeyMapping('openInv', Lang:t('inf_mapping.opn_inv'), 'keyboard', Config.Keybinds.Open)
 RegisterKeyMapping('toggleHotbar', Lang:t('inf_mapping.tog_slots'), 'keyboard', Config.Keybinds.Hotbar)
+
+-- Disable combat and camera controls when inventory is open
+CreateThread(function()
+    while true do
+        Wait(0)
+        if inventoryOpen then
+            -- Disable camera controls
+            DisableControlAction(0, 1, true)  -- Look Left/Right
+            DisableControlAction(0, 2, true)  -- Look Up/Down
+            DisableControlAction(0, 4, true)  -- Look Down Only
+            DisableControlAction(0, 5, true)  -- Look Left Only
+            DisableControlAction(0, 6, true)  -- Look Right Only
+            
+            -- Disable combat/attack controls
+            DisableControlAction(0, 24, true)  -- Attack
+            DisableControlAction(0, 25, true)  -- Aim
+            DisableControlAction(0, 257, true) -- Attack 2
+            DisableControlAction(0, 263, true) -- Melee Attack 1
+            DisableControlAction(0, 264, true) -- Melee Attack 2
+            DisableControlAction(0, 45, true)  -- Reload
+            DisableControlAction(0, 140, true) -- Melee Attack Alternate
+            DisableControlAction(0, 141, true) -- Melee Attack Heavy
+            DisableControlAction(0, 142, true) -- Melee Attack Light
+            DisableControlAction(0, 143, true) -- Melee Block
+            DisablePlayerFiring(PlayerId(), true) -- Disable weapon firing
+        else
+            Wait(500)
+        end
+    end
+end)
