@@ -1246,124 +1246,151 @@ function InventorySection({
 	}
 
 	return (
-		<section className={cn("rounded border border-[#2a2a2a]/50 bg-[#151515]/60", sideBySide ? "p-3" : "p-1.5")}>
+		<section className={cn("rounded border border-[#2a2a2a]/50 bg-[#151515]/60", sideBySide ? "p-2" : "p-1.5")}>
 			<div className={cn("flex items-center justify-between", sideBySide ? "mb-2" : "mb-1.5")}>
 				<h2 className={cn("font-semibold text-white tracking-wide", sideBySide ? "text-xs" : "text-[10px]")}>{title}</h2>
 				<div className={cn("text-[#888]", sideBySide ? "text-xs" : "text-[10px]")}>Slots: {slots}</div>
 			</div>
-			<div className={cn("grid max-h-[50vh] overflow-y-auto pr-0.5", sideBySide ? "grid-cols-5 gap-2" : "grid-cols-5 gap-0.5")}>
-				{getSlotsArray(slots).map((slot) => {
-					const item = inventory[slot]
-					const isContextMenuOpen = contextMenuOpen?.type === type && contextMenuOpen?.slot === slot
-					const hasAttachments = !!(item && (item.type === 'weapon' || (item.info && item.info.attachments)))
-					// Only show "Use" for items that are explicitly useable (useable === true) or weapons
-					const isUseable = !!(item && (item.useable === true || item.type === 'weapon'))
-					const isCombinable = !!(item && item.combinable)
-					const canUse = isUseable && type === 'player'
-					return (
-						<ContextMenu.Root key={`${type}-${slot}`} open={isContextMenuOpen && !!item} onOpenChange={(open: boolean) => {
+			<Tooltip.Provider>
+				<div className={cn("grid max-h-[50vh] overflow-y-auto pr-0.5", sideBySide ? "grid-cols-5 gap-1" : "grid-cols-5 gap-0.5")}>
+					{getSlotsArray(slots).map((slot) => {
+						const item = inventory[slot]
+						const isContextMenuOpen = contextMenuOpen?.type === type && contextMenuOpen?.slot === slot
+						const hasAttachments = !!(item && (item.type === 'weapon' || (item.info && item.info.attachments)))
+						// Only show "Use" for items that are explicitly useable (useable === true) or weapons
+						const isUseable = !!(item && (item.useable === true || item.type === 'weapon'))
+						const isCombinable = !!(item && item.combinable)
+						const canUse = isUseable && type === 'player'
+						return (
+							<ContextMenu.Root key={`${type}-${slot}`} open={isContextMenuOpen && !!item} onOpenChange={(open: boolean) => {
 							if (open && item) {
 								setContextMenuOpen({ type, slot })
 							} else {
 								setContextMenuOpen(null)
 							}
 						}}>
-							<ContextMenu.Trigger asChild>
-								<div
-									className={cn(
-										'relative aspect-square rounded border transition-colors cursor-pointer',
-										item 
-											? 'bg-[#0f0f0f] border-[#2a2a2a] border-[#3a3a3a] hover:border-[#5a5a5a] hover:bg-[#151515]' 
-											: 'bg-[#0a0a0a] border-[#2a2a2a] opacity-40 hover:opacity-60 hover:border-[#3a3a3a]',
-										isContextMenuOpen && 'border-[#5a5a5a]',
-										// Make hotkey slots more apparent with a distinct border
-										slot <= 5 && 'border-[#5a5a5a] border-2'
-									)}
-									style={!item ? {
-										backgroundImage: 'linear-gradient(45deg, transparent 25%, rgba(42,42,42,0.08) 25%, rgba(42,42,42,0.08) 50%, transparent 50%, transparent 75%, rgba(42,42,42,0.08) 75%, rgba(42,42,42,0.08))',
-										backgroundSize: '8px 8px'
-									} : undefined}
-									onMouseDown={(e) => {
-										// Only handle left click for dragging
-										if (e.button === 0) {
-											onSlotMouseDown(type, slot, e)
-										}
-									}}
-									onMouseUp={(e) => {
-										// Only handle left click for dragging
-										if (e.button === 0) {
-											onSlotMouseUp(type, slot, e)
-										}
-									}}
-									onDoubleClick={() => onItemDoubleClick(type, slot)}
-								>
-									{/* Hotkey indicator for first 5 slots */}
-									{slot <= 5 && (
-										<div className={cn(
-											"absolute top-0.5 left-0.5 z-10 flex items-center justify-center rounded-full border-2 border-[#6a6a6a] bg-gradient-to-br from-[#3a3a3a] to-[#2a2a2a] font-bold text-white shadow-md",
-											sideBySide ? "h-4 w-4 text-[11px]" : "h-3.5 w-3.5 text-[10px]"
-										)}>
-											{slot}
-										</div>
-									)}
+							{item ? (
+								<Tooltip.Root delayDuration={300}>
+									<ContextMenu.Trigger asChild>
+										<Tooltip.Trigger asChild>
+												<div
+													className={cn(
+														'relative aspect-square rounded border transition-colors cursor-pointer',
+														'bg-[#0f0f0f] border-[#2a2a2a] border-[#3a3a3a] hover:border-[#5a5a5a] hover:bg-[#151515]',
+														isContextMenuOpen && 'border-[#5a5a5a]',
+														// Make hotkey slots more apparent with a distinct border
+														slot <= 5 && 'border-[#5a5a5a] border-2'
+													)}
+													onMouseDown={(e) => {
+														// Only handle left click for dragging
+														if (e.button === 0) {
+															onSlotMouseDown(type, slot, e)
+														}
+													}}
+													onMouseUp={(e) => {
+														// Only handle left click for dragging
+														if (e.button === 0) {
+															onSlotMouseUp(type, slot, e)
+														}
+													}}
+													onDoubleClick={() => onItemDoubleClick(type, slot)}
+												>
+													{/* Hotkey indicator for first 5 slots */}
+													{slot <= 5 && (
+														<div className={cn(
+															"absolute top-0.5 left-0.5 z-10 flex items-center justify-center rounded-full border-2 border-[#6a6a6a] bg-gradient-to-br from-[#3a3a3a] to-[#2a2a2a] font-bold text-white shadow-md",
+															sideBySide ? "h-4 w-4 text-[11px]" : "h-3.5 w-3.5 text-[10px]"
+														)}>
+															{slot}
+														</div>
+													)}
 
-									{/* Item image */}
-									{item && (
-										<div className={cn("flex h-full w-full items-center justify-center", sideBySide ? "p-1.5" : "p-1")}>
-											<img
-												src={getItemIconUrl(item) || ''}
-												onError={onIconError}
-												alt=""
-												className="max-h-full max-w-full object-contain"
-											/>
-										</div>
-									)}
+													{/* Item image */}
+													<div className={cn("flex h-full w-full items-center justify-center", sideBySide ? "p-1.5" : "p-1")}>
+														<img
+															src={getItemIconUrl(item) || ''}
+															onError={onIconError}
+															alt=""
+															className="max-h-full max-w-full object-contain"
+														/>
+													</div>
 
-									{/* Stack count indicator */}
-									{item && item.amount > 1 && (
-										<div className={cn(
-											"absolute bottom-0.5 right-0.5 z-10 rounded-sm border border-[#4a4a4a]/50 bg-[#000]/95 backdrop-blur-sm font-semibold text-white leading-tight px-1",
-											sideBySide ? "py-0.5 text-[10px]" : "py-0 text-[9px]"
-										)}>
-											{item.amount}
-										</div>
-									)}
+													{/* Stack count indicator */}
+													{item.amount > 1 && (
+														<div className={cn(
+															"absolute bottom-0.5 right-0.5 z-10 rounded-sm border border-[#4a4a4a]/50 bg-[#000]/95 backdrop-blur-sm font-semibold text-white leading-tight px-1",
+															sideBySide ? "py-0.5 text-[10px]" : "py-0 text-[9px]"
+														)}>
+															{item.amount}
+														</div>
+													)}
 
-									{/* Quality/Durability bar */}
-									{item && item.info && item.info.quality != null && (
-										<div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#000]/60 rounded-b overflow-hidden">
-											<div
-												className={cn(
-													"h-full transition-all",
-													Number(item.info.quality) > 75 ? "bg-green-500" :
-													Number(item.info.quality) > 25 ? "bg-yellow-500" :
-													"bg-red-500"
-												)}
-												style={{ width: `${Math.min(Math.max(Number(item.info.quality) || 0, 0), 100)}%` }}
-											/>
-										</div>
-									)}
-									
-									{/* Tooltip wrapper */}
-									{item && (
-										<Tooltip.Provider>
-											<Tooltip.Root delayDuration={300}>
-												<Tooltip.Trigger asChild>
-													<div className="absolute inset-0 pointer-events-none" />
-												</Tooltip.Trigger>
-												<Tooltip.Portal>
-													<Tooltip.Content
-														side="top"
-														className="z-50 max-w-xs rounded border border-[#2a2a2a]/50 bg-[#1a1a1a] p-2 text-[10px] text-white shadow-xl"
-													>
-														{renderTooltip(item)}
-													</Tooltip.Content>
-												</Tooltip.Portal>
-											</Tooltip.Root>
-										</Tooltip.Provider>
-									)}
-								</div>
-							</ContextMenu.Trigger>
+													{/* Quality/Durability bar */}
+													{item.info && item.info.quality != null && (
+														<div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#000]/60 rounded-b overflow-hidden">
+															<div
+																className={cn(
+																	"h-full transition-all",
+																	Number(item.info.quality) > 75 ? "bg-green-500" :
+																	Number(item.info.quality) > 25 ? "bg-yellow-500" :
+																	"bg-red-500"
+																)}
+																style={{ width: `${Math.min(Math.max(Number(item.info.quality) || 0, 0), 100)}%` }}
+															/>
+														</div>
+													)}
+												</div>
+											</Tooltip.Trigger>
+										</ContextMenu.Trigger>
+										<Tooltip.Portal>
+											<Tooltip.Content
+												side="top"
+												className="z-50 max-w-xs rounded border border-[#2a2a2a]/50 bg-[#1a1a1a] p-2 text-[10px] text-white shadow-xl"
+											>
+												{renderTooltip(item)}
+											</Tooltip.Content>
+										</Tooltip.Portal>
+									</Tooltip.Root>
+							) : (
+								<ContextMenu.Trigger asChild>
+									<div
+										className={cn(
+											'relative aspect-square rounded border transition-colors cursor-pointer',
+											'bg-[#0a0a0a] border-[#2a2a2a] opacity-40 hover:opacity-60 hover:border-[#3a3a3a]',
+											isContextMenuOpen && 'border-[#5a5a5a]',
+											// Make hotkey slots more apparent with a distinct border
+											slot <= 5 && 'border-[#5a5a5a] border-2'
+										)}
+										style={{
+											backgroundImage: 'linear-gradient(45deg, transparent 25%, rgba(42,42,42,0.08) 25%, rgba(42,42,42,0.08) 50%, transparent 50%, transparent 75%, rgba(42,42,42,0.08) 75%, rgba(42,42,42,0.08))',
+											backgroundSize: '8px 8px'
+										}}
+										onMouseDown={(e) => {
+											// Only handle left click for dragging
+											if (e.button === 0) {
+												onSlotMouseDown(type, slot, e)
+											}
+										}}
+										onMouseUp={(e) => {
+											// Only handle left click for dragging
+											if (e.button === 0) {
+												onSlotMouseUp(type, slot, e)
+											}
+										}}
+										onDoubleClick={() => onItemDoubleClick(type, slot)}
+									>
+										{/* Hotkey indicator for first 5 slots */}
+										{slot <= 5 && (
+											<div className={cn(
+												"absolute top-0.5 left-0.5 z-10 flex items-center justify-center rounded-full border-2 border-[#6a6a6a] bg-gradient-to-br from-[#3a3a3a] to-[#2a2a2a] font-bold text-white shadow-md",
+												sideBySide ? "h-4 w-4 text-[11px]" : "h-3.5 w-3.5 text-[10px]"
+											)}>
+												{slot}
+											</div>
+										)}
+									</div>
+								</ContextMenu.Trigger>
+							)}
 							{item && (
 								<ContextMenu.Portal>
 									<ContextMenu.Content className="z-[100] min-w-[160px] rounded border border-[#2a2a2a]/50 bg-[#1a1a1a] p-0.5 shadow-xl">
@@ -1418,10 +1445,11 @@ function InventorySection({
 									</ContextMenu.Content>
 								</ContextMenu.Portal>
 							)}
-						</ContextMenu.Root>
-					)
-				})}
-			</div>
+							</ContextMenu.Root>
+						)
+					})}
+				</div>
+			</Tooltip.Provider>
 		</section>
 	)
 }
