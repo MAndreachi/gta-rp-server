@@ -233,6 +233,41 @@ export default function App() {
 		const toItem = toMap.map[toSlot] || null
 		if (!fromItem) return
 
+		const fromInventoryName = fromType === 'other' ? otherName : 'player'
+		const toInventoryName = toType === 'other' ? otherName : 'player'
+		
+		// Handle shop purchases - use AttemptPurchase instead of SetInventoryData
+		// Don't update UI optimistically for shop purchases - wait for server confirmation
+		if (fromInventoryName && fromInventoryName.startsWith('shop-')) {
+			// Moving from shop to player inventory - this is a purchase
+			if (toInventoryName === 'player') {
+				const shopItem = fromType === 'other' ? otherInv[fromSlot] : null
+				if (shopItem) {
+					const moveAmount = shiftKey ? 1 : Number(shopItem.amount) || 1
+					// Splitting: if not holding Shift and stack > 1, prompt amount
+					if (!shiftKey && Number(shopItem.amount) > 1) {
+						setSplitFrom({ type: fromType, slot: fromSlot })
+						setSplitTo({ type: toType, slot: toSlot })
+						setSplitMax(Number(shopItem.amount))
+						setSplitAmount(1)
+						setSplitOpen(true)
+						return
+					}
+					nuiSend('AttemptPurchase', {
+						item: shopItem,
+						amount: moveAmount,
+						shop: fromInventoryName
+					})
+					return
+				}
+			}
+		}
+		
+		// Don't allow moving items to shops
+		if (toInventoryName && toInventoryName.startsWith('shop-')) {
+			return
+		}
+
 		// Splitting: if not holding Shift and stack > 1, prompt amount
 		if (!shiftKey && Number(fromItem.amount) > 1) {
 			setSplitFrom({ type: fromType, slot: fromSlot })
@@ -298,9 +333,7 @@ export default function App() {
 			fromMap.set(newFrom as InventoryMap)
 			toMap.set(newTo as InventoryMap)
 		}
-
-		const fromInventoryName = fromType === 'other' ? otherName : 'player'
-		const toInventoryName = toType === 'other' ? otherName : 'player'
+		
 		nuiSend('SetInventoryData', {
 			fromInventory: fromInventoryName,
 			toInventory: toInventoryName,
@@ -436,6 +469,39 @@ export default function App() {
 
 		const fromInventoryName = splitFrom.type === 'other' ? otherName : 'player'
 		const toInventoryName = splitTo.type === 'other' ? otherName : 'player'
+
+		// Handle shop purchases - use AttemptPurchase instead of SetInventoryData
+		if (fromInventoryName && fromInventoryName.startsWith('shop-')) {
+			// Moving from shop to player inventory - this is a purchase
+			if (toInventoryName === 'player') {
+				const shopItem = splitFrom.type === 'other' ? otherInv[splitFrom.slot] : null
+				if (shopItem) {
+					nuiSend('AttemptPurchase', {
+						item: shopItem,
+						amount: amount,
+						shop: fromInventoryName
+					}).then((success: unknown) => {
+						if (!success) {
+							// Purchase failed, revert the UI changes
+							setPlayerInv({ ...playerInv })
+							setOtherInv({ ...otherInv })
+						}
+					})
+					setSplitOpen(false)
+					setSplitFrom(null)
+					setSplitTo(null)
+					return
+				}
+			}
+		}
+		
+		// Don't allow moving items to shops
+		if (toInventoryName && toInventoryName.startsWith('shop-')) {
+			setSplitOpen(false)
+			setSplitFrom(null)
+			setSplitTo(null)
+			return
+		}
 
 		nuiSend('SetInventoryData', {
 			fromInventory: fromInventoryName,

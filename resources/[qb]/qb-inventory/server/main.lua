@@ -501,7 +501,10 @@ local function getIdentifier(inventoryId, src)
 end
 
 RegisterNetEvent('qb-inventory:server:SetInventoryData', function(fromInventory, toInventory, fromSlot, toSlot, fromAmount, toAmount)
+    -- Block moving items to shops (should use AttemptPurchase instead)
     if toInventory:find('shop%-') then return end
+    -- Block moving items from shops (should use AttemptPurchase instead)
+    if fromInventory:find('shop%-') then return end
     if not fromInventory or not toInventory or not fromSlot or not toSlot or not fromAmount or not toAmount or fromAmount < 0 or toAmount < 0 then return end
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
