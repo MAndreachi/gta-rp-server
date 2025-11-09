@@ -943,23 +943,24 @@ export default function App() {
 								)}
 
 								<div className={cn('grid gap-3 max-h-[55vh] overflow-y-auto', isShop ? 'lg:grid-cols-3' : otherName ? 'lg:grid-cols-2' : 'grid-cols-1')}>
-									<InventorySection
-										title={playerName.toUpperCase()}
-										slots={playerSlots}
-										inventory={playerInv}
-										type="player"
-										sideBySide={!!otherName}
-											onSlotMouseDown={onSlotMouseDown}
-											onSlotMouseUp={onSlotMouseUp}
-											onItemDoubleClick={onItemDoubleClick}
-											onContextMenu={handleContextMenu}
-											getItemIconUrl={getItemIconUrl}
-											onIconError={onIconError}
-											contextMenuOpen={contextMenuOpen}
-											onContextMenuAction={handleContextMenuAction}
-											setContextMenuOpen={setContextMenuOpen}
-											onAttachments={openAttachments}
-										/>
+								<InventorySection
+									title={playerName.toUpperCase()}
+									slots={playerSlots}
+									inventory={playerInv}
+									type="player"
+									sideBySide={!!otherName}
+									onSlotMouseDown={onSlotMouseDown}
+									onSlotMouseUp={onSlotMouseUp}
+									onItemDoubleClick={onItemDoubleClick}
+									onContextMenu={handleContextMenu}
+									getItemIconUrl={getItemIconUrl}
+									onIconError={onIconError}
+									contextMenuOpen={contextMenuOpen}
+									onContextMenuAction={handleContextMenuAction}
+									setContextMenuOpen={setContextMenuOpen}
+									onAttachments={openAttachments}
+									isDragging={!!(dragPreview || mouseDragFrom)}
+								/>
 
 									{/* Checkout Area (for shops) - between inventories */}
 									{isShop && (
@@ -1072,22 +1073,23 @@ export default function App() {
 									)}
 
 									{otherName && (
-										<InventorySection
-											title={otherLabel?.toUpperCase() ?? 'CONTAINER'}
-											slots={otherSlots}
-											inventory={otherInv}
-											type="other"
-											sideBySide={true}
-											onSlotMouseDown={onSlotMouseDown}
-											onSlotMouseUp={onSlotMouseUp}
-											onItemDoubleClick={onItemDoubleClick}
-											onContextMenu={handleContextMenu}
-											getItemIconUrl={getItemIconUrl}
-											onIconError={onIconError}
-											contextMenuOpen={contextMenuOpen}
-											onContextMenuAction={handleContextMenuAction}
-											setContextMenuOpen={setContextMenuOpen}
-											onAttachments={openAttachments}
+									<InventorySection
+										title={otherLabel?.toUpperCase() ?? 'CONTAINER'}
+										slots={otherSlots}
+										inventory={otherInv}
+										type="other"
+										sideBySide={true}
+										onSlotMouseDown={onSlotMouseDown}
+										onSlotMouseUp={onSlotMouseUp}
+										onItemDoubleClick={onItemDoubleClick}
+										onContextMenu={handleContextMenu}
+										getItemIconUrl={getItemIconUrl}
+										onIconError={onIconError}
+										contextMenuOpen={contextMenuOpen}
+										onContextMenuAction={handleContextMenuAction}
+										setContextMenuOpen={setContextMenuOpen}
+										onAttachments={openAttachments}
+										isDragging={!!(dragPreview || mouseDragFrom)}
 										/>
 									)}
 								</div>
@@ -1223,7 +1225,8 @@ function InventorySection({
 	contextMenuOpen,
 	onContextMenuAction,
 	setContextMenuOpen,
-	onAttachments
+	onAttachments,
+	isDragging
 }: {
 	title: string
 	slots: number
@@ -1240,6 +1243,7 @@ function InventorySection({
 	onContextMenuAction: (action: string) => void
 	setContextMenuOpen: (open: { type: 'player' | 'other'; slot: number } | null) => void
 	onAttachments: (item?: InventoryItem | null) => void
+	isDragging: boolean
 }) {
 	function getSlotsArray(total: number): number[] {
 		return Array.from({ length: total }, (_, i) => i + 1)
@@ -1270,9 +1274,10 @@ function InventorySection({
 							}
 						}}>
 							{item ? (
-								<Tooltip.Root delayDuration={300}>
-									<ContextMenu.Trigger asChild>
-										<Tooltip.Trigger asChild>
+								!isDragging ? (
+									<Tooltip.Root delayDuration={300}>
+										<ContextMenu.Trigger asChild>
+											<Tooltip.Trigger asChild>
 												<div
 													className={cn(
 														'relative aspect-square rounded border transition-colors cursor-pointer',
@@ -1351,6 +1356,77 @@ function InventorySection({
 											</Tooltip.Content>
 										</Tooltip.Portal>
 									</Tooltip.Root>
+								) : (
+									<ContextMenu.Trigger asChild>
+										<div
+											className={cn(
+												'relative aspect-square rounded border transition-colors cursor-pointer',
+												'bg-[#0f0f0f] border-[#2a2a2a] border-[#3a3a3a] hover:border-[#5a5a5a] hover:bg-[#151515]',
+												isContextMenuOpen && 'border-[#5a5a5a]',
+												// Make hotkey slots more apparent with a distinct border
+												slot <= 5 && 'border-[#5a5a5a] border-2'
+											)}
+											onMouseDown={(e) => {
+												// Only handle left click for dragging
+												if (e.button === 0) {
+													onSlotMouseDown(type, slot, e)
+												}
+											}}
+											onMouseUp={(e) => {
+												// Only handle left click for dragging
+												if (e.button === 0) {
+													onSlotMouseUp(type, slot, e)
+												}
+											}}
+											onDoubleClick={() => onItemDoubleClick(type, slot)}
+										>
+											{/* Hotkey indicator for first 5 slots */}
+											{slot <= 5 && (
+												<div className={cn(
+													"absolute top-0.5 left-0.5 z-10 flex items-center justify-center rounded-full border-2 border-[#6a6a6a] bg-gradient-to-br from-[#3a3a3a] to-[#2a2a2a] font-bold text-white shadow-md",
+													sideBySide ? "h-4 w-4 text-[11px]" : "h-3.5 w-3.5 text-[10px]"
+												)}>
+													{slot}
+												</div>
+											)}
+
+											{/* Item image */}
+											<div className={cn("flex h-full w-full items-center justify-center", sideBySide ? "p-1.5" : "p-1")}>
+												<img
+													src={getItemIconUrl(item) || ''}
+													onError={onIconError}
+													alt=""
+													className="max-h-full max-w-full object-contain"
+												/>
+											</div>
+
+											{/* Stack count indicator */}
+											{item.amount > 1 && (
+												<div className={cn(
+													"absolute bottom-0.5 right-0.5 z-10 rounded-sm border border-[#4a4a4a]/50 bg-[#000]/95 backdrop-blur-sm font-semibold text-white leading-tight px-1",
+													sideBySide ? "py-0.5 text-[10px]" : "py-0 text-[9px]"
+												)}>
+													{item.amount}
+												</div>
+											)}
+
+											{/* Quality/Durability bar */}
+											{item.info && item.info.quality != null && (
+												<div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#000]/60 rounded-b overflow-hidden">
+													<div
+														className={cn(
+															"h-full transition-all",
+															Number(item.info.quality) > 75 ? "bg-green-500" :
+															Number(item.info.quality) > 25 ? "bg-yellow-500" :
+															"bg-red-500"
+														)}
+														style={{ width: `${Math.min(Math.max(Number(item.info.quality) || 0, 0), 100)}%` }}
+													/>
+												</div>
+											)}
+										</div>
+									</ContextMenu.Trigger>
+								)
 							) : (
 								<ContextMenu.Trigger asChild>
 									<div
