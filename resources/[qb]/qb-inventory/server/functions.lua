@@ -778,6 +778,10 @@ function AddItem(identifier, item, amount, slot, info, reason)
         player.Functions.SetPlayerData('items', inventory)
 		-- Always update inventory, not just when inventory is open
 		TriggerClientEvent('qb-inventory:client:updateInventory', identifier, inventory)
+        -- Auto-sync cash if cash item was added/removed
+        if item:lower() == 'cash' and player.Functions.SyncCash then
+            player.Functions.SyncCash()
+        end
     end
     local invName = player and GetPlayerName(identifier) .. ' (' .. identifier .. ')' or identifier
     local addReason = reason or 'No reason specified'
@@ -872,6 +876,10 @@ function RemoveItem(identifier, item, amount, slot, reason)
         local itemInfo = QBCore.Shared.Items[item:lower()]
         if itemInfo and itemInfo.type == 'weapon' and inventoryItem.amount <= 0 then
             checkWeapon(identifier, item)
+        end
+        -- Auto-sync cash if cash item was removed
+        if item:lower() == 'cash' and player.Functions.SyncCash then
+            player.Functions.SyncCash()
         end
     end
 

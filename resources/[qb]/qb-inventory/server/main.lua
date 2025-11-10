@@ -378,7 +378,8 @@ QBCore.Functions.CreateCallback('qb-inventory:server:attemptPurchase', function(
     end
 
     local price = shopInfo.items[itemInfo.slot].price * amount
-    if Player.PlayerData.money.cash >= price then
+    local playerCash = Player.Functions.GetMoney('cash')
+    if playerCash >= price then
         Player.Functions.RemoveMoney('cash', price, 'shop-purchase')
         AddItem(source, itemInfo.name, amount, nil, itemInfo.info, 'shop-purchase')
         shopInfo.items[itemInfo.slot].amount -= amount

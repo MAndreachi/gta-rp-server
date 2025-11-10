@@ -157,6 +157,8 @@ QBCore.Functions.CreateCallback('qb-banking:server:openBank', function(source, c
     local src = source
     local Player, citizenid = getPlayerAndCitizenId(src)
     if not Player or not citizenid then return end
+    -- Sync cash from inventory before sending data
+    Player.Functions.SyncCash()
     local job = Player.PlayerData.job
     local gang = Player.PlayerData.gang
     local accounts = {}
@@ -186,6 +188,8 @@ QBCore.Functions.CreateCallback('qb-banking:server:openATM', function(source, cb
     local src = source
     local Player, citizenid = getPlayerAndCitizenId(src)
     if not Player or not citizenid then return end
+    -- Sync cash from inventory before sending data
+    Player.Functions.SyncCash()
     local bankCards = Player.Functions.GetItemsByName('bank_card')
     if not bankCards then return TriggerClientEvent('QBCore:Notify', src, Lang:t('error.card'), 'error') end
     local acceptablePins = {}
@@ -245,7 +249,7 @@ QBCore.Functions.CreateCallback('qb-banking:server:deposit', function(source, cb
     local depositAmount = tonumber(data.amount)
     local reason = (data.reason ~= '' and data.reason) or 'Bank Deposit'
     if accountName == 'checking' then
-        local accountBalance = Player.PlayerData.money.cash
+        local accountBalance = Player.Functions.GetMoney('cash')
         if accountBalance < depositAmount then return cb({ success = false, message = Lang:t('error.money') }) end
         Player.Functions.RemoveMoney('cash', depositAmount, 'bank deposit')
         Player.Functions.AddMoney('bank', depositAmount, 'bank deposit')
@@ -257,7 +261,8 @@ QBCore.Functions.CreateCallback('qb-banking:server:deposit', function(source, cb
         local gang = Player.PlayerData.gang
         if Accounts[accountName].account_type == 'job' and job.name ~= accountName and not job.isboss then return cb({ success = false, message = Lang:t('error.access') }) end
         if Accounts[accountName].account_type == 'gang' and gang.name ~= accountName and not gang.isboss then return cb({ success = false, message = Lang:t('error.access') }) end
-        if Player.PlayerData.money.cash < depositAmount then return cb({ success = false, message = Lang:t('error.money') }) end
+        local accountBalance = Player.Functions.GetMoney('cash')
+        if accountBalance < depositAmount then return cb({ success = false, message = Lang:t('error.money') }) end
         Player.Functions.RemoveMoney('cash', depositAmount, 'bank account: ' .. accountName .. ' deposit')
         if not AddMoney(accountName, depositAmount) then return cb({ success = false, message = Lang:t('error.error') }) end
         cb({ success = true, message = Lang:t('success.deposit') })
@@ -504,7 +509,8 @@ QBCore.Commands.Add('givecash', 'Give Cash', { { name = 'id', help = 'Player ID'
     if not amount then return TriggerClientEvent('QBCore:Notify', src, Lang:t('error.amount'), 'error') end
     if amount <= 0 then return TriggerClientEvent('QBCore:Notify', src, Lang:t('error.amount'), 'error') end
     if #(playerCoords - targetCoords) > 5 then return TriggerClientEvent('QBCore:Notify', src, Lang:t('error.toofar'), 'error') end
-    if Player.PlayerData.money.cash < amount then return TriggerClientEvent('QBCore:Notify', src, Lang:t('error.money'), 'error') end
+    local playerCash = Player.Functions.GetMoney('cash')
+    if playerCash < amount then return TriggerClientEvent('QBCore:Notify', src, Lang:t('error.money'), 'error') end
     Player.Functions.RemoveMoney('cash', amount, 'cash transfer')
     target.Functions.AddMoney('cash', amount, 'cash transfer')
     TriggerClientEvent('QBCore:Notify', src, string.format(Lang:t('success.give'), amount), 'success')

@@ -716,7 +716,8 @@ export default function App() {
 				break
 			case 'give':
 				if (contextMenuOpen.type === 'player') {
-					nuiSend('GiveItem', { item, slot: contextMenuOpen.slot })
+					const giveAmount = Number(item.amount) || 1
+					nuiSend('GiveItem', { item, amount: giveAmount, slot: contextMenuOpen.slot })
 				}
 				break
 			case 'drop':
@@ -852,15 +853,23 @@ export default function App() {
 
 	function getItemIconUrl(item?: InventoryItem | null) {
 		if (!item) return undefined
-		// Use legacy images shipped with the resource
-		return `nui://qb-inventory/html/images/${item.name}.png`
+
+		const imageName = (() => {
+			const raw = item.image
+			if (typeof raw === 'string' && raw.trim().length > 0) {
+				return raw.trim()
+			}
+			return `${item.name}.png`
+		})()
+
+		return `nui://qb-inventory/html/images/${imageName}`
 	}
 
 	function onIconError(e: React.SyntheticEvent<HTMLImageElement, Event>) {
 		const img = e.currentTarget
 		if (!img.dataset.fallback) {
 			img.dataset.fallback = '1'
-			img.src = `nui://qb-inventory/html/images/placeholder.png`
+			img.src = `nui://qb-inventory/html/images/firework1.png`
 		}
 	}
 

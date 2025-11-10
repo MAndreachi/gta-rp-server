@@ -284,6 +284,14 @@ function QBCore.Player.CreatePlayer(PlayerData, Offline)
     function self.Functions.SetPlayerData(key, val)
         if not key or type(key) ~= 'string' then return end
         self.PlayerData[key] = val
+        -- Auto-sync cash whenever items are updated (robust solution - covers all inventory changes)
+        if key == 'items' and GetResourceState('qb-inventory') ~= 'missing' and not self.Offline and self.Functions.SyncCash then
+            -- Sync cash after items are set to ensure PlayerData.money.cash stays in sync
+            CreateThread(function()
+                Wait(0) -- Small delay to ensure inventory is fully updated
+                self.Functions.SyncCash()
+            end)
+        end
         self.Functions.UpdatePlayerData()
     end
 
@@ -495,12 +503,23 @@ function QBCore.Player.CreatePlayer(PlayerData, Offline)
                     totalCash = totalCash + item.amount
                 end
             end
-            -- Keep PlayerData.money.cash in sync
+            -- Keep PlayerData.money.cash in sync - this is the source of truth
             self.PlayerData.money[moneytype] = totalCash
             return totalCash
         end
         
-        return self.PlayerData.money[moneytype]
+        return self.PlayerData.money[moneytype] or 0
+    end
+    
+    -- Sync cash from inventory to PlayerData.money.cash
+    function self.Functions.SyncCash()
+        if GetResourceState('qb-inventory') ~= 'missing' and not self.Offline then
+            local totalCash = self.Functions.GetMoney('cash')
+            self.PlayerData.money.cash = totalCash
+            if not self.Offline then
+                self.Functions.UpdatePlayerData()
+            end
+        end
     end
 
     function self.Functions.Save()
