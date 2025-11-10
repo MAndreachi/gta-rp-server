@@ -173,6 +173,22 @@ function QBCore.Player.CreatePlayer(PlayerData, Offline)
     self.PlayerData = PlayerData
     self.Offline = Offline
 
+    -- Migrate existing cash to inventory items (one-time migration)
+    if not self.Offline and GetResourceState('qb-inventory') ~= 'missing' and PlayerData.money and PlayerData.money.cash and PlayerData.money.cash > 0 then
+        local inventoryCash = 0
+        if PlayerData.items then
+            for _, item in pairs(PlayerData.items) do
+                if item and item.name == 'cash' then
+                    inventoryCash = inventoryCash + item.amount
+                end
+            end
+        end
+        -- If player has cash in money but not in inventory, convert it
+        if inventoryCash == 0 and PlayerData.money.cash > 0 then
+            exports['qb-inventory']:AddItem(PlayerData.source, 'cash', PlayerData.money.cash, nil, nil, 'cash migration')
+        end
+    end
+
     function self.Functions.UpdatePlayerData()
         if self.Offline then return end
         TriggerEvent('QBCore:Player:SetPlayerData', self.PlayerData)
@@ -316,7 +332,21 @@ function QBCore.Player.CreatePlayer(PlayerData, Offline)
         amount = tonumber(amount)
         if amount < 0 then return end
         if not self.PlayerData.money[moneytype] then return false end
-        self.PlayerData.money[moneytype] = self.PlayerData.money[moneytype] + amount
+        
+        -- Handle cash as physical inventory item
+        if moneytype == 'cash' and GetResourceState('qb-inventory') ~= 'missing' and not self.Offline then
+            local success = exports['qb-inventory']:AddItem(self.PlayerData.source, 'cash', amount, nil, nil, reason)
+            if not success then
+                -- If inventory is full, fall back to old system
+                self.PlayerData.money[moneytype] = self.PlayerData.money[moneytype] + amount
+            else
+                -- Update the money value to reflect inventory cash
+                local totalCash = self.Functions.GetMoney('cash')
+                self.PlayerData.money[moneytype] = totalCash
+            end
+        else
+            self.PlayerData.money[moneytype] = self.PlayerData.money[moneytype] + amount
+        end
 
         if not self.Offline then
             self.Functions.UpdatePlayerData()
@@ -339,15 +369,50 @@ function QBCore.Player.CreatePlayer(PlayerData, Offline)
         amount = tonumber(amount)
         if amount < 0 then return end
         if not self.PlayerData.money[moneytype] then return false end
-        for _, mtype in pairs(QBCore.Config.Money.DontAllowMinus) do
-            if mtype == moneytype then
-                if (self.PlayerData.money[moneytype] - amount) < 0 then
-                    return false
+        
+        -- Handle cash as physical inventory item
+        if moneytype == 'cash' and GetResourceState('qb-inventory') ~= 'missing' and not self.Offline then
+            local currentCash = self.Functions.GetMoney('cash')
+            for _, mtype in pairs(QBCore.Config.Money.DontAllowMinus) do
+                if mtype == moneytype then
+                    if (currentCash - amount) < 0 then
+                        return false
+                    end
                 end
             end
+            if currentCash - amount < QBCore.Config.Money.MinusLimit then return false end
+            
+            -- Remove cash from inventory (may need to remove from multiple slots)
+            local remaining = amount
+            local cashItems = self.Functions.GetItemsByName('cash')
+            if cashItems then
+                for _, item in pairs(cashItems) do
+                    if remaining <= 0 then break end
+                    local removeAmount = math.min(remaining, item.amount)
+                    exports['qb-inventory']:RemoveItem(self.PlayerData.source, 'cash', removeAmount, item.slot, reason)
+                    remaining = remaining - removeAmount
+                end
+            end
+            
+            if remaining > 0 then
+                -- Not enough cash in inventory, return false
+                return false
+            end
+            
+            -- Update the money value to reflect inventory cash
+            local totalCash = self.Functions.GetMoney('cash')
+            self.PlayerData.money[moneytype] = totalCash
+        else
+            for _, mtype in pairs(QBCore.Config.Money.DontAllowMinus) do
+                if mtype == moneytype then
+                    if (self.PlayerData.money[moneytype] - amount) < 0 then
+                        return false
+                    end
+                end
+            end
+            if self.PlayerData.money[moneytype] - amount < QBCore.Config.Money.MinusLimit then return false end
+            self.PlayerData.money[moneytype] = self.PlayerData.money[moneytype] - amount
         end
-        if self.PlayerData.money[moneytype] - amount < QBCore.Config.Money.MinusLimit then return false end
-        self.PlayerData.money[moneytype] = self.PlayerData.money[moneytype] - amount
 
         if not self.Offline then
             self.Functions.UpdatePlayerData()
@@ -373,11 +438,41 @@ function QBCore.Player.CreatePlayer(PlayerData, Offline)
         amount = tonumber(amount)
         if amount < 0 then return false end
         if not self.PlayerData.money[moneytype] then return false end
-        local difference = amount - self.PlayerData.money[moneytype]
-        self.PlayerData.money[moneytype] = amount
+        
+        -- Handle cash as physical inventory item
+        if moneytype == 'cash' and GetResourceState('qb-inventory') ~= 'missing' and not self.Offline then
+            local currentCash = self.Functions.GetMoney('cash')
+            local difference = amount - currentCash
+            
+            if difference > 0 then
+                -- Add cash
+                exports['qb-inventory']:AddItem(self.PlayerData.source, 'cash', difference, nil, nil, reason)
+            elseif difference < 0 then
+                -- Remove cash
+                local removeAmount = math.abs(difference)
+                local cashItems = self.Functions.GetItemsByName('cash')
+                if cashItems then
+                    local remaining = removeAmount
+                    for _, item in pairs(cashItems) do
+                        if remaining <= 0 then break end
+                        local removeFromSlot = math.min(remaining, item.amount)
+                        exports['qb-inventory']:RemoveItem(self.PlayerData.source, 'cash', removeFromSlot, item.slot, reason)
+                        remaining = remaining - removeFromSlot
+                    end
+                end
+            end
+            
+            -- Update the money value to reflect inventory cash
+            local totalCash = self.Functions.GetMoney('cash')
+            self.PlayerData.money[moneytype] = totalCash
+        else
+            local difference = amount - self.PlayerData.money[moneytype]
+            self.PlayerData.money[moneytype] = amount
+        end
 
         if not self.Offline then
             self.Functions.UpdatePlayerData()
+            local difference = amount - (moneytype == 'cash' and self.Functions.GetMoney('cash') or self.PlayerData.money[moneytype])
             TriggerEvent('qb-log:server:CreateLog', 'playermoney', 'SetMoney', 'green', '**' .. GetPlayerName(self.PlayerData.source) .. ' (citizenid: ' .. self.PlayerData.citizenid .. ' | id: ' .. self.PlayerData.source .. ')** $' .. amount .. ' (' .. moneytype .. ') set, new ' .. moneytype .. ' balance: ' .. self.PlayerData.money[moneytype] .. ' reason: ' .. reason)
             TriggerClientEvent('hud:client:OnMoneyChange', self.PlayerData.source, moneytype, math.abs(difference), difference < 0)
             TriggerClientEvent('QBCore:Client:OnMoneyChange', self.PlayerData.source, moneytype, amount, 'set', reason)
@@ -390,6 +485,21 @@ function QBCore.Player.CreatePlayer(PlayerData, Offline)
     function self.Functions.GetMoney(moneytype)
         if not moneytype then return false end
         moneytype = moneytype:lower()
+        
+        -- Handle cash as physical inventory item
+        if moneytype == 'cash' and GetResourceState('qb-inventory') ~= 'missing' and not self.Offline then
+            local cashItems = self.Functions.GetItemsByName('cash')
+            local totalCash = 0
+            if cashItems then
+                for _, item in pairs(cashItems) do
+                    totalCash = totalCash + item.amount
+                end
+            end
+            -- Keep PlayerData.money.cash in sync
+            self.PlayerData.money[moneytype] = totalCash
+            return totalCash
+        end
+        
         return self.PlayerData.money[moneytype]
     end
 

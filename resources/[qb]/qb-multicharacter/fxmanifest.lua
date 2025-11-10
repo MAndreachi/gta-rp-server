@@ -22,18 +22,11 @@ server_scripts {
     'server/main.lua'
 }
 
-ui_page 'html/index.html'
+ui_page 'web/dist/index.html'
 
 files {
-    'html/index.html',
-    'html/style.css',
-    'html/reset.css',
-    'html/vue.js',
-    'html/swal2.js',
-    'html/profanity.js',
-    'html/translations.js',
-    'html/validation.js',
-    'html/app.js'
+    'web/dist/index.html',
+    'web/dist/assets/**'
 }
 
 dependencies {

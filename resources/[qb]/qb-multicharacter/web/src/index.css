@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+	--background: #1a1a1a;
+	--foreground: #ffffff;
+	--muted: #151515;
+	--muted-foreground: #888888;
+	--border: #2a2a2a;
+	--input: #2a2a2a;
+	--secondary: #0f0f0f;
+	--secondary-foreground: #ffffff;
+	--success: #22c55e;
+	--success-hover: #16a34a;
+	--error: #ef4444;
+	--error-hover: #dc2626;
+}
+
+html, body, #root {
+	height: 100%;
+}
+
+body {
+	@apply text-foreground antialiased;
+	background: transparent;
+	font-family: 'Exo 2', sans-serif;
+}
+
+#root { 
+	pointer-events: none; 
+}
+
+/* Custom scrollbar styling to match dark theme */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: #0f0f0f;
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+	background: #2a2a2a;
+	border-radius: 4px;
+	border: 1px solid #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: #3a3a3a;
+}
+
+/* Firefox scrollbar styling */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: #2a2a2a #0f0f0f;
+}
+
+/* Transition animations */
+.fade-enter-active,
+.fade-leave-active {
+	transition: opacity 0.3s ease;
+}
+
+.fade-enter,
+.fade-leave-to {
+	opacity: 0;
+}
+
+/* Spinner animation */
+@keyframes spin {
+	0% {
+		transform: rotate(0deg);
+	}
+	100% {
+		transform: rotate(360deg);
+	}
+}
+
+.animate-spin {
+	animation: spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+

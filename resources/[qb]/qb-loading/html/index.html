@@ -21,7 +21,8 @@
             <!-- Uncomment q-parallax and comment out q-carousel if you want to use a video background instead -->
 
             <q-carousel animated v-model="firstslide" :autoplay="secondap" ref="carousel" infinite>
-                <q-carousel-slide :name="1" img-src="/assets/images/1.png"></q-carousel-slide>
+                <q-carousel-slide :name="1" img-src="/assets/images/tony2.jpg"></q-carousel-slide>
+                <q-carousel-slide :name="2" img-src="/assets/images/tony1.jpg"></q-carousel-slide>
             </q-carousel>
 
             <!-- This is where you want to replace with your video -->
@@ -180,7 +181,7 @@
 
                         <!-- This is where you want to replace with your logo -->
 
-                        <img class="cursor-none brand-logo" src="/assets/branding/qbcore.svg"></img>
+                        <!-- Logo removed - add your own logo here if needed -->
                         <q-space></q-space>
                         <q-btn :ripple="false" flat size="xl" icon="downloading" color="white" @click="download = true"></q-btn>
                         <div class="loadingbar">

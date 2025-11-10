@@ -245,6 +245,8 @@ function GetMaxValues()
         action = "updateMax",
         maxValues = maxModelValues
     })
+    
+    return maxModelValues
 end
 local function enableCam()
     -- Camera
@@ -419,11 +421,12 @@ local function openMenu(allowedMenus)
             translations[k:sub(('ui.'):len() + 1)] = Lang:t(k)
         end
     end
-    GetMaxValues()
+    local maxValues = GetMaxValues()
     SendNUIMessage({
         action = "open",
         menus = allowedMenus,
         currentClothing = skinData,
+        maxValues = maxValues,
         hasTracker = trackerMeta,
         translations = translations,
     })
@@ -443,6 +446,8 @@ local function ChangeVariation(data)
     local clothingCategory = data.clothingType
     local type = data.type
     local item = data.articleNumber
+    
+    print('^3[qb-clothing]^7 ChangeVariation - Category:', clothingCategory, 'Type:', type, 'Item:', item)
 
     if clothingCategory == "pants" then
         if type == "item" then
@@ -651,7 +656,7 @@ local function ChangeVariation(data)
             local newitem = (item / 10)
             -- print(newitem)
             SetPedFaceFeature(ped, 9, newitem)
-            skinData["cheek_1"].item = item
+            skinData["cheek_2"].item = item
         end
     elseif clothingCategory == "cheek_3" then
         if type == "item" then
@@ -741,7 +746,7 @@ local function ChangeVariation(data)
             local newitem = (item / 10)
             -- print(newitem)
             SetPedFaceFeature(ped, 19, newitem)
-            skinData["chimp_hole"].item = item
+            skinData["neck_thikness"].item = item
         end
     elseif clothingCategory == "t-shirt" then
         if type == "item" then
@@ -1029,6 +1034,7 @@ RegisterNetEvent('qb-clothes:client:CreateFirstCharacter', function()
         end
 
         ChangeToSkinNoUpdate(skin)
+        
         SendNUIMessage({
             action = "ResetValues",
         })
@@ -1554,10 +1560,12 @@ RegisterNUICallback('getCatergoryItems', function(data, cb)
     cb(Config.Menus[data.category])
 end)
 RegisterNUICallback('updateSkin', function(data, cb)
+    print('^2[qb-clothing]^7 updateSkin received:', json.encode(data))
     ChangeVariation(data)
     cb('ok')
 end)
 RegisterNUICallback('updateSkinOnInput', function(data, cb)
+    print('^2[qb-clothing]^7 updateSkinOnInput received:', json.encode(data))
     ChangeVariation(data)
     cb('ok')
 end)

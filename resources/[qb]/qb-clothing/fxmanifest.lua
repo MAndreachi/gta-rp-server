@@ -3,9 +3,9 @@ game 'gta5'
 lua54 'yes'
 author 'Kakarot'
 description 'A menu providing players the ability to change their clothing and accessories'
-version '1.2.0'
+version '2.0.0'
 
-ui_page 'html/index.html'
+ui_page 'web/dist/index.html'
 
 shared_scripts {
     '@qb-core/shared/locale.lua',
@@ -27,8 +27,6 @@ client_scripts {
 }
 
 files {
-    'html/index.html',
-    'html/style.css',
-    'html/reset.css',
-    'html/script.js'
+    'web/dist/index.html',
+    'web/dist/assets/**',
 }

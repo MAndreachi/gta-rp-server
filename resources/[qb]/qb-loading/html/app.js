@@ -5,17 +5,17 @@ const { ref } = Vue
 const load = Vue.createApp({
   setup () {
     return {
-      CarouselText1: 'You can add/remove items, vehicles, jobs & gangs through the shared folder.',
-      CarouselSubText1: 'Photo captured by: Markyoo#8068',
-      CarouselText2: 'Adding additional player data can be achieved by modifying the qb-core player.lua file.',
-      CarouselSubText2: 'Photo captured by: ihyajb#9723',
-      CarouselText3: 'All server-specific adjustments can be made in the config.lua files throughout the build.',
-      CarouselSubText3: 'Photo captured by: FLAPZ[INACTIV]#9925',
-      CarouselText4: 'For additional support please join our community at discord.gg/qbcore',
-      CarouselSubText4: 'Photo captured by: Robinerino#1312',
+      CarouselText1: 'Welcome to Los Santos',
+      CarouselSubText1: 'Experience the ultimate roleplay adventure in the city of dreams.',
+      CarouselText2: 'Create Your Story',
+      CarouselSubText2: 'Build your character and make your mark on the city.',
+      CarouselText3: 'Join the Community',
+      CarouselSubText3: 'Meet new people and create unforgettable memories.',
+      CarouselText4: 'Live Your Life',
+      CarouselSubText4: 'Choose your path - from law enforcement to criminal mastermind.',
 
-      DownloadTitle: 'Downloading QBCore Server',
-      DownloadDesc: "Hold tight while we begin downloading all the resources/assets required to play on QBCore Server. \n\nAfter download has been finished successfully, you'll be placed into the server and this screen will disappear. Please don't leave or turn off your PC. ",
+      DownloadTitle: 'Connecting to Server',
+      DownloadDesc: "Please wait while we load all the resources and assets needed to play. \n\nOnce the download is complete, you'll be placed into the server. Please don't close the game or turn off your PC during this process.",
 
       SettingsTitle: 'Settings',
       AudioTrackDesc1: 'When disabled the current audio-track playing will be stopped.',
