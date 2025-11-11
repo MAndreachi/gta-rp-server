@@ -41,7 +41,20 @@ end
 -- Callbacks
 
 QBCore.Functions.CreateCallback('qb-cityhall:server:receiveJobs', function(_, cb)
-    cb(availableJobs)
+    local jobsWithDetails = {}
+    for jobName, jobData in pairs(availableJobs) do
+        local fullJobData = QBCore.Shared.Jobs[jobName]
+        if fullJobData then
+            jobsWithDetails[jobName] = {
+                label = jobData.label,
+                isManaged = jobData.isManaged,
+                fullData = fullJobData
+            }
+        else
+            jobsWithDetails[jobName] = jobData
+        end
+    end
+    cb(jobsWithDetails)
 end)
 
 QBCore.Functions.CreateCallback('qb-cityhall:server:getIdentityData', function(source, cb, hallId)

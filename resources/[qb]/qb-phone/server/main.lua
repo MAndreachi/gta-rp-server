@@ -291,7 +291,8 @@ QBCore.Functions.CreateCallback('qb-phone:server:PayInvoice', function(source, c
         if exists[1] and exists[1]["count"] == 1 then
             if SenderPly and Config.BillingCommissions[society] then
                 local commission = QBCore.Shared.Round(amount * Config.BillingCommissions[society])
-                SenderPly.Functions.AddMoney('bank', commission)
+                -- Use AddMoneyToPlayerBank to create transaction history
+                exports['qb-banking']:AddMoneyToPlayerBank(SenderPly.PlayerData.source, commission, 'Billing Commission', 'checking')
                 invoiceMailData = {
                     sender = 'Billing Department',
                     subject = 'Commission Received',
@@ -560,7 +561,8 @@ QBCore.Functions.CreateCallback('qb-phone:server:CanTransferMoney', function(sou
             local Reciever = QBCore.Functions.GetPlayerByCitizenId(result[1].citizenid)
             Player.Functions.RemoveMoney('bank', amount)
             if Reciever ~= nil then
-                Reciever.Functions.AddMoney('bank', amount)
+                -- Use AddMoneyToPlayerBank to create transaction history
+                exports['qb-banking']:AddMoneyToPlayerBank(Reciever.PlayerData.source, amount, 'Phone Transfer', 'checking')
             else
                 local RecieverMoney = json.decode(result[1].money)
                 RecieverMoney.bank = (RecieverMoney.bank + amount)
@@ -858,7 +860,8 @@ RegisterNetEvent('qb-phone:server:TransferMoney', function(iban, amount)
 
         if reciever ~= nil then
             local PhoneItem = reciever.Functions.GetItemByName('phone')
-            reciever.Functions.AddMoney('bank', amount, 'phone-transfered-from-' .. sender.PlayerData.citizenid)
+            -- Use AddMoneyToPlayerBank to create transaction history
+            exports['qb-banking']:AddMoneyToPlayerBank(reciever.PlayerData.source, amount, 'Phone Transfer from ' .. sender.PlayerData.charinfo.firstname .. ' ' .. sender.PlayerData.charinfo.lastname, 'checking')
             sender.Functions.RemoveMoney('bank', amount, 'phone-transfered-to-' .. reciever.PlayerData.citizenid)
 
             if PhoneItem ~= nil then

@@ -4,8 +4,36 @@ Config.UseTarget = GetConvar('UseTarget', 'false') == 'true'
 
 Config.BailPrice = 250
 
+-- XP and Level System
+Config.XP = {
+    BaseXP = 10,              -- Base XP per vehicle towed
+    ConditionBonus = 5,       -- Bonus XP for undamaged delivery (0% damage)
+    TimeBonus = 3,           -- Bonus XP for quick delivery (<5 minutes)
+    TimeThreshold = 300,     -- Time in seconds for quick delivery (5 minutes)
+}
+
+Config.Levels = {
+    -- Level tiers: {minXP, maxXP, multiplier, label}
+    {minXP = 0, maxXP = 500, multiplier = 1.0, label = "Rookie"},
+    {minXP = 501, maxXP = 1500, multiplier = 1.1, label = "Apprentice"},
+    {minXP = 1501, maxXP = 3000, multiplier = 1.25, label = "Professional"},
+    {minXP = 3001, maxXP = 5000, multiplier = 1.5, label = "Expert"},
+    {minXP = 5001, maxXP = 999999, multiplier = 1.75, label = "Master"},
+}
+
 Config.Vehicles = {
     ["flatbed"] = "Flatbed",
+}
+
+Config.Peds = {
+    {
+        model = 's_m_y_construct_01',
+        coords = vector4(472.54, -1309.55, 28.2, 210.0),
+        zoneOptions = { -- Used for when UseTarget is false
+            length = 3.0,
+            width = 3.0
+        }
+    }
 }
 
 Config.Locations = {

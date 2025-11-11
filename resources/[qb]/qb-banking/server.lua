@@ -92,6 +92,40 @@ local function CreateBankStatement(playerId, account, amount, reason, statementT
 end
 exports('CreateBankStatement', CreateBankStatement)
 
+-- Helper function to add money to player's bank account with transaction history
+-- This should be used instead of Player.Functions.AddMoney('bank', ...) for proper transaction tracking
+-- For now, all payments go to the 'checking' account (player's main bank balance)
+-- In the future, this could be extended to support account selection
+local function AddMoneyToPlayerBank(playerId, amount, reason, accountName)
+    local Player, citizenid = getPlayerAndCitizenId(playerId)
+    if not Player or not citizenid then return false end
+    
+    -- For now, all payments go to checking account (player's main bank balance)
+    -- Shared accounts are separate and would require different handling
+    accountName = accountName or 'checking'
+    
+    -- If a specific account is requested and it's not checking, handle it
+    if accountName ~= 'checking' then
+        -- Check if it's a shared account that belongs to the player
+        if Accounts[accountName] and Accounts[accountName].citizenid == citizenid then
+            -- Add money to the shared account (not player's bank balance)
+            if not AddMoney(accountName, amount, reason) then return false end
+            -- Create statement for the shared account
+            return CreateBankStatement(playerId, accountName, amount, reason, 'deposit', 'shared')
+        else
+            -- Account doesn't exist or doesn't belong to player, default to checking
+            accountName = 'checking'
+        end
+    end
+    
+    -- Add money to player's bank balance (checking account)
+    Player.Functions.AddMoney('bank', amount, reason)
+    
+    -- Create bank statement for transaction history
+    return CreateBankStatement(playerId, 'checking', amount, reason, 'deposit', 'player')
+end
+exports('AddMoneyToPlayerBank', AddMoneyToPlayerBank)
+
 local function AddMoney(accountName, amount, reason)
     if not reason then reason = 'External Deposit' end
     local newStatement = {

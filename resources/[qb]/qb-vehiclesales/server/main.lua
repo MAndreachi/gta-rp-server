@@ -95,7 +95,8 @@ RegisterNetEvent('qb-occasions:server:sellVehicleBack', function(vehData)
     local ownsVehicle = MySQL.query.await('DELETE FROM player_vehicles WHERE plate = ? AND citizenid = ? and hash = ?', { plate, Player.PlayerData.citizenid, vehData.model })
     if ownsVehicle.affectedRows > 0 then
         local payout = math.floor(tonumber(price * 0.5))
-        Player.Functions.AddMoney('bank', payout, 'sold vehicle back')
+        -- Use AddMoneyToPlayerBank to create transaction history
+        exports['qb-banking']:AddMoneyToPlayerBank(src, payout, 'Vehicle Sale Refund', 'checking')
         TriggerClientEvent('QBCore:Notify', src, Lang:t('success.sold_car_for_price', { value = payout }), 'success', 5500)
     else
         TriggerClientEvent('QBCore:Notify', src, Lang:t('error.not_your_vehicle'), 'error', 3500)
@@ -122,7 +123,8 @@ RegisterNetEvent('qb-occasions:server:buyVehicle', function(vehicleData)
                     0
                 })
             if SellerData then
-                SellerData.Functions.AddMoney('bank', NewPrice, 'sold vehicle used lot')
+                -- Use AddMoneyToPlayerBank to create transaction history
+                exports['qb-banking']:AddMoneyToPlayerBank(SellerData.PlayerData.source, NewPrice, 'Vehicle Sale (Used Lot)', 'checking')
             else
                 local BuyerData = MySQL.query.await('SELECT * FROM players WHERE citizenid = ?', { SellerCitizenId })
                 if BuyerData[1] then

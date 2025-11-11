@@ -158,3 +158,21 @@ Config.Locations = {
 }
 
 Config.Vehicle = 'trash2' -- vehicle name used to spawn
+
+-- XP and Level System
+Config.XP = {
+    BaseXP = 8,              -- Base XP per stop completed
+    BagBonus = 2,           -- Bonus XP per bag collected (scales with bags)
+    RouteBonus = 5,         -- Bonus XP for completing full route (all stops)
+    TimeBonus = 3,          -- Bonus XP for quick route completion (<30 minutes)
+    TimeThreshold = 1800,   -- Time in seconds for quick route (30 minutes)
+}
+
+Config.Levels = {
+    -- Level tiers: {minXP, maxXP, multiplier, label}
+    {minXP = 0, maxXP = 500, multiplier = 1.0, label = "Rookie"},
+    {minXP = 501, maxXP = 1500, multiplier = 1.1, label = "Apprentice"},
+    {minXP = 1501, maxXP = 3000, multiplier = 1.25, label = "Professional"},
+    {minXP = 3001, maxXP = 5000, multiplier = 1.5, label = "Expert"},
+    {minXP = 5001, maxXP = 999999, multiplier = 1.75, label = "Master"},
+}

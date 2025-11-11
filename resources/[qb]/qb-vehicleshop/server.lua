@@ -349,7 +349,8 @@ RegisterNetEvent('qb-vehicleshop:server:sellShowroomVehicle', function(data, pla
             })
             TriggerClientEvent('qb-vehicleshop:client:buyShowroomVehicle', target.PlayerData.source, vehicle, plate)
             target.Functions.RemoveMoney('cash', vehiclePrice, 'vehicle-bought-in-showroom')
-            player.Functions.AddMoney('bank', commission, 'vehicle sale commission')
+            -- Use AddMoneyToPlayerBank to create transaction history
+            exports['qb-banking']:AddMoneyToPlayerBank(src, commission, 'Vehicle Sale Commission', 'checking')
             TriggerClientEvent('QBCore:Notify', src, Lang:t('success.earned_commission', { amount = comma_value(commission) }), 'success')
             exports['qb-banking']:AddMoney(player.PlayerData.job.name, vehiclePrice, 'Vehicle sale')
             TriggerClientEvent('QBCore:Notify', target.PlayerData.source, Lang:t('success.purchased'), 'success')
@@ -366,7 +367,8 @@ RegisterNetEvent('qb-vehicleshop:server:sellShowroomVehicle', function(data, pla
             })
             TriggerClientEvent('qb-vehicleshop:client:buyShowroomVehicle', target.PlayerData.source, vehicle, plate)
             target.Functions.RemoveMoney('bank', vehiclePrice, 'vehicle-bought-in-showroom')
-            player.Functions.AddMoney('bank', commission, 'vehicle sale commission')
+            -- Use AddMoneyToPlayerBank to create transaction history
+            exports['qb-banking']:AddMoneyToPlayerBank(src, commission, 'Vehicle Sale Commission', 'checking')
             exports['qb-banking']:AddMoney(player.PlayerData.job.name, vehiclePrice, 'Vehicle sale')
             TriggerClientEvent('QBCore:Notify', src, Lang:t('success.earned_commission', { amount = comma_value(commission) }), 'success')
             TriggerClientEvent('QBCore:Notify', target.PlayerData.source, Lang:t('success.purchased'), 'success')
@@ -421,7 +423,8 @@ RegisterNetEvent('qb-vehicleshop:server:sellfinanceVehicle', function(downPaymen
             })
             TriggerClientEvent('qb-vehicleshop:client:buyShowroomVehicle', target.PlayerData.source, vehicle, plate)
             target.Functions.RemoveMoney('cash', downPayment, 'vehicle-bought-in-showroom')
-            player.Functions.AddMoney('bank', commission, 'vehicle sale commission')
+            -- Use AddMoneyToPlayerBank to create transaction history
+            exports['qb-banking']:AddMoneyToPlayerBank(src, commission, 'Vehicle Sale Commission', 'checking')
             TriggerClientEvent('QBCore:Notify', src, Lang:t('success.earned_commission', { amount = comma_value(commission) }), 'success')
             exports['qb-banking']:AddMoney(player.PlayerData.job.name, vehiclePrice, 'Vehicle sale')
             TriggerClientEvent('QBCore:Notify', target.PlayerData.source, Lang:t('success.purchased'), 'success')
@@ -442,7 +445,8 @@ RegisterNetEvent('qb-vehicleshop:server:sellfinanceVehicle', function(downPaymen
             })
             TriggerClientEvent('qb-vehicleshop:client:buyShowroomVehicle', target.PlayerData.source, vehicle, plate)
             target.Functions.RemoveMoney('bank', downPayment, 'vehicle-bought-in-showroom')
-            player.Functions.AddMoney('bank', commission, 'vehicle sale commission')
+            -- Use AddMoneyToPlayerBank to create transaction history
+            exports['qb-banking']:AddMoneyToPlayerBank(src, commission, 'Vehicle Sale Commission', 'checking')
             TriggerClientEvent('QBCore:Notify', src, Lang:t('success.earned_commission', { amount = comma_value(commission) }), 'success')
             exports['qb-banking']:AddMoney(player.PlayerData.job.name, vehiclePrice, 'Vehicle sale')
             TriggerClientEvent('QBCore:Notify', target.PlayerData.source, Lang:t('success.purchased'), 'success')
@@ -513,7 +517,8 @@ QBCore.Commands.Add('transfervehicle', Lang:t('general.command_transfervehicle')
         TriggerClientEvent('QBCore:Notify', buyerId, Lang:t('success.boughtfor') .. comma_value(sellAmount), 'success')
     elseif target.Functions.GetMoney('bank') > sellAmount then
         MySQL.update('UPDATE player_vehicles SET citizenid = ?, license = ? WHERE plate = ?', { targetcid, targetlicense, plate })
-        player.Functions.AddMoney('bank', sellAmount, 'transferred vehicle')
+        -- Use AddMoneyToPlayerBank to create transaction history
+        exports['qb-banking']:AddMoneyToPlayerBank(src, sellAmount, 'Vehicle Transfer Sale', 'checking')
         target.Functions.RemoveMoney('bank', sellAmount, 'transferred vehicle')
         TriggerClientEvent('QBCore:Notify', src, Lang:t('success.soldfor') .. comma_value(sellAmount), 'success')
         TriggerClientEvent('vehiclekeys:client:SetOwner', buyerId, plate)

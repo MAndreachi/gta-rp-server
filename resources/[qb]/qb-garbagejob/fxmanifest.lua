@@ -3,7 +3,7 @@ game 'gta5'
 lua54 'yes'
 author 'Kakarot'
 description 'Allows players to collect garbage for money'
-version '1.2.0'
+version '1.3.0'
 
 shared_scripts {
 	'@qb-core/shared/locale.lua',
@@ -22,3 +22,10 @@ client_script {
 }
 
 server_script 'server/main.lua'
+
+ui_page 'web/dist/index.html'
+
+files {
+	'web/dist/index.html',
+	'web/dist/assets/**',
+}

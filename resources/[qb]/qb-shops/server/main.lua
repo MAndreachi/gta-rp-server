@@ -40,7 +40,8 @@ local function deliveryPay(source, shop)
     local deliverCoords = Config.Locations[shop].delivery
     local distance = #(playerCoords - vector3(deliverCoords.x, deliverCoords.y, deliverCoords.z))
     if distance > 10 then return end
-    Player.Functions.AddMoney('bank', Config.DeliveryPrice, 'qb-shops:deliveryPay')
+    -- Use AddMoneyToPlayerBank to create transaction history
+    exports['qb-banking']:AddMoneyToPlayerBank(source, Config.DeliveryPrice, 'Shop Delivery Payment', 'checking')
     if math.random(100) <= 10 then exports['qb-inventory']:AddItem(source, Config.RewardItem, 1, false, false, 'qb-shops:deliveryPay') end
 end
 
@@ -108,7 +109,8 @@ RegisterNetEvent('qb-shops:server:PaySlip', function(drops)
     local completedDrops = tonumber(drops)
     if not drops then return end
     local payment = Config.DeliveryPrice * completedDrops
-    Player.Functions.AddMoney('bank', payment, 'trucker-salary')
+    -- Use AddMoneyToPlayerBank to create transaction history
+    exports['qb-banking']:AddMoneyToPlayerBank(src, payment, 'Trucker Salary', 'checking')
     Player.Functions.AddRep('delivery', completedDrops)
     TriggerClientEvent('QBCore:Notify', src, Lang:t('success.you_earned', { value = payment }), 'success')
 end)

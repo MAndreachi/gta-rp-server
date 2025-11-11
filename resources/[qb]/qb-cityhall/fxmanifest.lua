@@ -20,3 +20,10 @@ client_scripts {
     '@PolyZone/BoxZone.lua',
     'client/main.lua'
 }
+
+ui_page 'web/dist/index.html'
+
+files {
+    'web/dist/index.html',
+    'web/dist/assets/**'
+}

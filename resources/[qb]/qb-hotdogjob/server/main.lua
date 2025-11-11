@@ -20,7 +20,8 @@ QBCore.Functions.CreateCallback('qb-hotdogjob:server:BringBack', function(source
     local Player = QBCore.Functions.GetPlayer(source)
 
     if Bail[Player.PlayerData.citizenid] then
-        Player.Functions.AddMoney('bank', Config.StandDeposit, 'hot dog deposit')
+        -- Use AddMoneyToPlayerBank to create transaction history
+        exports['qb-banking']:AddMoneyToPlayerBank(source, Config.StandDeposit, 'Hot Dog Stand Deposit Refund', 'checking')
         cb(true)
     else
         cb(false)

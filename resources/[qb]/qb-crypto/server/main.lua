@@ -288,7 +288,8 @@ QBCore.Functions.CreateCallback('qb-crypto:server:SellCrypto', function(source, 
         Player.Functions.RemoveMoney('crypto', tonumber(data.Coins), 'sold crypto')
         local amount = math.floor(tonumber(data.Coins) * tonumber(Crypto.Worth['qbit']))
         TriggerClientEvent('qb-phone:client:AddTransaction', source, Player, data, Lang:t('debit.you_have_sold', { dataCoins = tonumber(data.Coins) }), 'Debit')
-        Player.Functions.AddMoney('bank', amount, 'sold crypto')
+        -- Use AddMoneyToPlayerBank to create transaction history
+        exports['qb-banking']:AddMoneyToPlayerBank(source, amount, 'Crypto Sale', 'checking')
         cb(CryptoData)
     else
         cb(false)

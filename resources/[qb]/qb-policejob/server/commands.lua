@@ -314,7 +314,8 @@ QBCore.Commands.Add('paytow', Lang:t('commands.paytow'), { { name = 'id', help =
         local OtherPlayer = QBCore.Functions.GetPlayer(playerId)
         if OtherPlayer then
             if OtherPlayer.PlayerData.job.name == 'tow' then
-                OtherPlayer.Functions.AddMoney('bank', 500, 'police-tow-paid')
+                -- Use AddMoneyToPlayerBank to create transaction history
+                exports['qb-banking']:AddMoneyToPlayerBank(OtherPlayer.PlayerData.source, 500, 'Police Tow Payment', 'checking')
                 TriggerClientEvent('QBCore:Notify', OtherPlayer.PlayerData.source, Lang:t('success.tow_paid'), 'success')
                 TriggerClientEvent('QBCore:Notify', src, Lang:t('info.tow_driver_paid'))
             else
@@ -334,7 +335,8 @@ QBCore.Commands.Add('paylawyer', Lang:t('commands.paylawyer'), { { name = 'id', 
         local OtherPlayer = QBCore.Functions.GetPlayer(playerId)
         if not OtherPlayer then return end
         if OtherPlayer.PlayerData.job.name == 'lawyer' then
-            OtherPlayer.Functions.AddMoney('bank', 500, 'police-lawyer-paid')
+            -- Use AddMoneyToPlayerBank to create transaction history
+            exports['qb-banking']:AddMoneyToPlayerBank(OtherPlayer.PlayerData.source, 500, 'Police Lawyer Payment', 'checking')
             TriggerClientEvent('QBCore:Notify', OtherPlayer.PlayerData.source, Lang:t('success.tow_paid'), 'success')
             TriggerClientEvent('QBCore:Notify', src, Lang:t('info.paid_lawyer'))
         else

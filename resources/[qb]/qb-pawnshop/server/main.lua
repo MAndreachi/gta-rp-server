@@ -35,7 +35,8 @@ RegisterNetEvent('qb-pawnshop:server:sellPawnItems', function(itemName, itemAmou
     end
     if exports['qb-inventory']:RemoveItem(src, itemName, tonumber(itemAmount), false, 'qb-pawnshop:server:sellPawnItems') then
         if Config.BankMoney then
-            Player.Functions.AddMoney('bank', totalPrice, 'qb-pawnshop:server:sellPawnItems')
+            -- Use AddMoneyToPlayerBank to create transaction history
+            exports['qb-banking']:AddMoneyToPlayerBank(src, totalPrice, 'Pawnshop Sale', 'checking')
         else
             Player.Functions.AddMoney('cash', totalPrice, 'qb-pawnshop:server:sellPawnItems')
         end

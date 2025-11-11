@@ -11,6 +11,12 @@ local showMarker = false
 local CurrentBlip2 = nil
 local CurrentTow = nil
 local drawDropOff = false
+local pedsSpawned = false
+local ControlListen = false
+local towVehicle = nil
+local isMenuOpen = false
+local contractStartTime = nil
+local vehicleConditionOnHook = nil
 
 -- Functions
 
@@ -178,25 +184,123 @@ local function CreateZone(type, number)
 end
 
 local function deliverVehicle(vehicle)
+    -- Calculate vehicle condition (damage percentage)
+    local condition = 0.0
+    if vehicle and DoesEntityExist(vehicle) then
+        local bodyHealth = GetVehicleBodyHealth(vehicle)
+        local engineHealth = GetVehicleEngineHealth(vehicle)
+        local maxHealth = 1000.0
+        local totalDamage = (maxHealth - bodyHealth) + (maxHealth - engineHealth)
+        condition = totalDamage / (maxHealth * 2) -- 0.0 = perfect, 1.0 = destroyed
+    end
+    
+    -- Calculate delivery time
+    local deliveryTime = nil
+    if contractStartTime then
+        deliveryTime = GetGameTimer() - contractStartTime
+    end
+    
+    -- Send XP event to server
+    print("^2[qb-towjob] Client: Sending XP event to server (condition=" .. (condition or "nil") .. ", time=" .. (deliveryTime or "nil") .. ")^0")
+    TriggerServerEvent('qb-tow:server:AddXP', condition, deliveryTime)
+    
     DeleteVehicle(vehicle)
     RemoveBlip(CurrentBlip2)
     JobsDone = JobsDone + 1
     VehicleSpawned = false
-    QBCore.Functions.Notify(Lang:t("mission.delivered_vehicle"), "success")
-    QBCore.Functions.Notify(Lang:t("mission.get_new_vehicle"))
+    CurrentTow = nil
+    drawDropOff = false
+    contractStartTime = nil
+    vehicleConditionOnHook = nil
+    
+    -- Automatically assign new contract
+    if NpcOn and towVehicle and DoesEntityExist(towVehicle) then
+        Wait(1000)
+        local randomLocation = getRandomVehicleLocation()
+        CurrentLocation.x = Config.Locations["towspots"][randomLocation].coords.x
+        CurrentLocation.y = Config.Locations["towspots"][randomLocation].coords.y
+        CurrentLocation.z = Config.Locations["towspots"][randomLocation].coords.z
+        CurrentLocation.model = Config.Locations["towspots"][randomLocation].model
+        CurrentLocation.id = randomLocation
+        CreateZone("towspots", randomLocation)
 
-    local randomLocation = getRandomVehicleLocation()
-    CurrentLocation.x = Config.Locations["towspots"][randomLocation].coords.x
-    CurrentLocation.y = Config.Locations["towspots"][randomLocation].coords.y
-    CurrentLocation.z = Config.Locations["towspots"][randomLocation].coords.z
-    CurrentLocation.model = Config.Locations["towspots"][randomLocation].model
-    CurrentLocation.id = randomLocation
-    CreateZone("towspots", randomLocation)
+        if CurrentBlip then
+            RemoveBlip(CurrentBlip)
+        end
+        CurrentBlip = AddBlipForCoord(CurrentLocation.x, CurrentLocation.y, CurrentLocation.z)
+        SetBlipColour(CurrentBlip, 3)
+        SetBlipRoute(CurrentBlip, true)
+        SetBlipRouteColour(CurrentBlip, 3)
+        QBCore.Functions.Notify(Lang:t("mission.get_new_vehicle"), "primary", 4000)
+    end
+end
 
-    CurrentBlip = AddBlipForCoord(CurrentLocation.x, CurrentLocation.y, CurrentLocation.z)
-    SetBlipColour(CurrentBlip, 3)
-    SetBlipRoute(CurrentBlip, true)
-    SetBlipRouteColour(CurrentBlip, 3)
+local function Listen4Control()
+    ControlListen = true
+    CreateThread(function()
+        while ControlListen do
+            if IsControlJustReleased(0, 38) then
+                TriggerEvent("qb-tow:client:MainMenu")
+            end
+            Wait(1)
+        end
+    end)
+end
+
+local function spawnPeds()
+    if not Config.Peds or not next(Config.Peds) or pedsSpawned then return end
+    for i = 1, #Config.Peds do
+        local current = Config.Peds[i]
+        current.model = type(current.model) == 'string' and GetHashKey(current.model) or current.model
+        RequestModel(current.model)
+        while not HasModelLoaded(current.model) do
+            Wait(0)
+        end
+        local ped = CreatePed(0, current.model, current.coords, false, false)
+        FreezeEntityPosition(ped, true)
+        SetEntityInvincible(ped, true)
+        SetBlockingOfNonTemporaryEvents(ped, true)
+        current.pedHandle = ped
+
+        if Config.UseTarget then
+            exports['qb-target']:AddTargetEntity(ped, {
+                options = {{type = "client", event = "qb-tow:client:MainMenu", label = Lang:t("target.talk"), icon = 'fa-solid fa-truck', job = "tow",}},
+                distance = 2.0
+            })
+        else
+            local options = current.zoneOptions
+            if options then
+                local zone = BoxZone:Create(current.coords.xyz, options.length, options.width, {
+                    name = "zone_tow_" .. ped,
+                    heading = current.coords.w,
+                    debugPoly = false
+                })
+                zone:onPlayerInOut(function(inside)
+                    if LocalPlayer.state.isLoggedIn then
+                        if inside then
+                            exports['qb-core']:DrawText(Lang:t("info.talk"), 'left')
+                            Listen4Control()
+                        else
+                            ControlListen = false
+                            exports['qb-core']:HideText()
+                        end
+                    end
+                end)
+            end
+        end
+    end
+    pedsSpawned = true
+end
+
+local function deletePeds()
+    if not Config.Peds or not next(Config.Peds) or not pedsSpawned then return end
+    for i = 1, #Config.Peds do
+        local current = Config.Peds[i]
+        if current.pedHandle then
+            DeletePed(current.pedHandle)
+        end
+    end
+    pedsSpawned = false
 end
 
 local function CreateElements()
@@ -210,18 +314,7 @@ local function CreateElements()
     AddTextComponentSubstringPlayerName(Config.Locations["main"].label)
     EndTextCommandSetBlipName(TowBlip)
 
-    local TowVehBlip = AddBlipForCoord(Config.Locations["vehicle"].coords.x, Config.Locations["vehicle"].coords.y, Config.Locations["vehicle"].coords.z)
-    SetBlipSprite(TowVehBlip, 326)
-    SetBlipDisplay(TowVehBlip, 4)
-    SetBlipScale(TowVehBlip, 0.6)
-    SetBlipAsShortRange(TowVehBlip, true)
-    SetBlipColour(TowVehBlip, 15)
-    BeginTextCommandSetBlipName("STRING")
-    AddTextComponentSubstringPlayerName(Config.Locations["vehicle"].label)
-    EndTextCommandSetBlipName(TowVehBlip)
-
-    CreateZone("main")
-    CreateZone("vehicle")
+    spawnPeds()
 end
 -- Events
 
@@ -230,6 +323,7 @@ RegisterNetEvent('qb-tow:client:SpawnVehicle', function()
     local coords = Config.Locations["vehicle"].coords
     QBCore.Functions.TriggerCallback('QBCore:Server:SpawnVehicle', function(netId)
         local veh = NetToVeh(netId)
+        towVehicle = veh
         SetVehicleNumberPlateText(veh, "TOWR"..tostring(math.random(1000, 9999)))
         SetEntityHeading(veh, coords.w)
         exports['LegacyFuel']:SetFuel(veh, 100.0)
@@ -240,6 +334,24 @@ RegisterNetEvent('qb-tow:client:SpawnVehicle', function()
         SetVehicleEngineOn(veh, true, true)
         for i = 1, 9, 1 do
             SetVehicleExtra(veh, i, 0)
+        end
+        -- Automatically start the job after getting the truck
+        Wait(1000)
+        if selectedVeh then
+            NpcOn = true
+            local randomLocation = getRandomVehicleLocation()
+            CurrentLocation.x = Config.Locations["towspots"][randomLocation].coords.x
+            CurrentLocation.y = Config.Locations["towspots"][randomLocation].coords.y
+            CurrentLocation.z = Config.Locations["towspots"][randomLocation].coords.z
+            CurrentLocation.model = Config.Locations["towspots"][randomLocation].model
+            CurrentLocation.id = randomLocation
+            CreateZone("towspots", randomLocation)
+
+            CurrentBlip = AddBlipForCoord(CurrentLocation.x, CurrentLocation.y, CurrentLocation.z)
+            SetBlipColour(CurrentBlip, 3)
+            SetBlipRoute(CurrentBlip, true)
+            SetBlipRouteColour(CurrentBlip, 3)
+            -- New contract notification removed - blip on map is sufficient
         end
     end, vehicleInfo, coords, false)
 end)
@@ -257,7 +369,67 @@ RegisterNetEvent('QBCore:Client:OnJobUpdate', function(JobInfo)
 
     if PlayerJob.name == "tow" then
         CreateElements()
+    else
+        deletePeds()
     end
+end)
+
+AddEventHandler('onResourceStop', function(resource)
+    if GetCurrentResourceName() == resource then
+        deletePeds()
+    end
+end)
+
+AddEventHandler('onResourceStart', function(resource)
+    if GetCurrentResourceName() == resource then
+        PlayerJob = QBCore.Functions.GetPlayerData().job
+        if PlayerJob.name == "tow" then
+            CreateElements()
+        end
+    end
+end)
+
+-- Disable combat controls when menu is open
+CreateThread(function()
+    while true do
+        Wait(0)
+        if isMenuOpen then
+            -- Disable combat/attack controls
+            DisableControlAction(0, 24, true)  -- Attack
+            DisableControlAction(0, 25, true)  -- Aim
+            DisableControlAction(0, 257, true) -- Attack 2
+            DisableControlAction(0, 263, true) -- Melee Attack 1
+            DisableControlAction(0, 264, true) -- Melee Attack 2
+            DisableControlAction(0, 45, true)  -- Reload
+            DisableControlAction(0, 140, true) -- Melee Attack Alternate
+            DisableControlAction(0, 141, true) -- Melee Attack Heavy
+            DisableControlAction(0, 142, true) -- Melee Attack Light
+            DisableControlAction(0, 143, true) -- Melee Block
+            DisablePlayerFiring(PlayerId(), true) -- Disable weapon firing
+        else
+            Wait(500)
+        end
+    end
+end)
+
+-- NUI Callbacks
+RegisterNUICallback('closeMenu', function(_, cb)
+    isMenuOpen = false
+    SetNuiFocus(false, false)
+    cb('ok')
+end)
+
+RegisterNUICallback('selectOption', function(data, cb)
+    print("^2[qb-towjob] Client: NUI selectOption callback, event=" .. tostring(data.event) .. "^0")
+    if data.event then
+        print("^2[qb-towjob] Client: Triggering event: " .. data.event .. "^0")
+        TriggerEvent(data.event)
+    else
+        print("^1[qb-towjob] Client: No event in selectOption data^0")
+    end
+    isMenuOpen = false
+    SetNuiFocus(false, false)
+    cb('ok')
 end)
 
 RegisterNetEvent('jobs:client:ToggleNpc', function()
@@ -325,6 +497,17 @@ RegisterNetEvent('qb-tow:client:TowVehicle', function()
                             AttachEntityToEntity(targetVehicle, vehicle, GetEntityBoneIndexByName(vehicle, 'bodyshell'), 0.0, -1.5 + -0.85, 0.0 + 1.15, 0, 0, 0, 1, 1, 0, 1, 0, 1)
                             FreezeEntityPosition(targetVehicle, true)
                             CurrentTow = targetVehicle
+                            
+                            -- Track contract start time and vehicle condition
+                            contractStartTime = GetGameTimer()
+                            if targetVehicle and DoesEntityExist(targetVehicle) then
+                                local bodyHealth = GetVehicleBodyHealth(targetVehicle)
+                                local engineHealth = GetVehicleEngineHealth(targetVehicle)
+                                local maxHealth = 1000.0
+                                local totalDamage = (maxHealth - bodyHealth) + (maxHealth - engineHealth)
+                                vehicleConditionOnHook = totalDamage / (maxHealth * 2)
+                            end
+                            
                             if NpcOn then
                                 RemoveBlip(CurrentBlip)
                                 QBCore.Functions.Notify(Lang:t("mission.goto_depot"), "primary", 5000)
@@ -372,7 +555,6 @@ RegisterNetEvent('qb-tow:client:TowVehicle', function()
                 RemoveBlip(CurrentBlip2)
                 CurrentTow = nil
                 drawDropOff = false
-                QBCore.Functions.Notify(Lang:t("mission.vehicle_takenoff"), "success")
             end, function() -- Cancel
                 StopAnimTask(PlayerPedId(), "mini@repair", "fixing_a_ped", 1.0)
                 QBCore.Functions.Notify(Lang:t("error.failed"), "error")
@@ -412,14 +594,197 @@ RegisterNetEvent('qb-tow:client:Vehicle', function()
 end)
 
 RegisterNetEvent('qb-tow:client:PaySlip', function()
+    print("^2[qb-towjob] Client: PaySlip event triggered, JobsDone=" .. JobsDone .. "^0")
     if JobsDone > 0 then
-        RemoveBlip(CurrentBlip)
+        if CurrentBlip then
+            RemoveBlip(CurrentBlip)
+        end
+        print("^2[qb-towjob] Client: Triggering server event with " .. JobsDone .. " drops^0")
+        
+        -- Try using callback instead of event
+        QBCore.Functions.TriggerCallback('qb-tow:server:CollectPaycheck', function(success, message)
+            if success then
+                print("^2[qb-towjob] Client: Paycheck collected successfully^0")
+                -- Payment notification is handled server-side
+            else
+                print("^1[qb-towjob] Client: Paycheck collection failed: " .. (message or "unknown") .. "^0")
+                QBCore.Functions.Notify(message or "Failed to collect payment", "error")
+            end
+        end, JobsDone)
+        
+        -- Also try the old event method as backup
         TriggerServerEvent("qb-tow:server:11101110", JobsDone)
         JobsDone = 0
         NpcOn = false
+        print("^2[qb-towjob] Client: Reset JobsDone to 0^0")
     else
+        print("^1[qb-towjob] Client: No work done, cannot collect payslip^0")
         QBCore.Functions.Notify(Lang:t("error.no_work_done"), "error")
     end
+end)
+
+RegisterNetEvent('qb-tow:client:ReturnTruck', function()
+    if CurrentTow ~= nil then
+        QBCore.Functions.Notify(Lang:t("error.finish_work"), "error")
+        return
+    end
+    
+    local vehicle = GetVehiclePedIsIn(PlayerPedId(), false)
+    if vehicle and isTowVehicle(vehicle) then
+        DeleteVehicle(vehicle)
+        towVehicle = nil
+        TriggerServerEvent('qb-tow:server:DoBail', false)
+        QBCore.Functions.Notify(Lang:t("success.truck_returned"), "success")
+        -- Clean up job state
+        if CurrentBlip then
+            RemoveBlip(CurrentBlip)
+            CurrentBlip = nil
+        end
+        NpcOn = false
+        VehicleSpawned = false
+        CurrentLocation = {}
+    elseif towVehicle and DoesEntityExist(towVehicle) then
+        DeleteVehicle(towVehicle)
+        towVehicle = nil
+        TriggerServerEvent('qb-tow:server:DoBail', false)
+        QBCore.Functions.Notify(Lang:t("success.truck_returned"), "success")
+        -- Clean up job state
+        if CurrentBlip then
+            RemoveBlip(CurrentBlip)
+            CurrentBlip = nil
+        end
+        NpcOn = false
+        VehicleSpawned = false
+        CurrentLocation = {}
+    else
+        QBCore.Functions.Notify(Lang:t("error.no_truck"), "error")
+    end
+end)
+
+-- Update stats event
+RegisterNetEvent('qb-tow:client:UpdateStats', function(stats)
+    -- Send updated stats to NUI if menu is open
+    if isMenuOpen then
+        SendNUIMessage({
+            action = 'updateStats',
+            stats = stats
+        })
+    end
+end)
+
+RegisterNetEvent('qb-tow:client:MainMenu', function()
+    -- Get current job data
+    local PlayerData = QBCore.Functions.GetPlayerData()
+    if not PlayerData or not PlayerData.job or PlayerData.job.name ~= "tow" then
+        QBCore.Functions.Notify(Lang:t("error.job"), "error")
+        return
+    end
+    
+    -- Fetch player stats with timeout fallback
+    local statsLoaded = false
+    local defaultStats = {xp = 0, level = 1, levelLabel = "Rookie", multiplier = 1.0, xpForCurrent = 0, xpForNext = 500, currentLevelMax = 500}
+    
+    QBCore.Functions.TriggerCallback('qb-tow:server:GetStats', function(stats)
+        statsLoaded = true
+        if not stats then
+            stats = defaultStats
+        end
+        
+        local MainMenu = {}
+        MainMenu[#MainMenu+1] = {isMenuHeader = true, header = Lang:t("menu.header")}
+        MainMenu[#MainMenu+1] = { 
+            header = Lang:t("menu.collect"), 
+            txt = Lang:t("menu.return_collect"), 
+            event = 'qb-tow:client:PaySlip'
+        }
+        -- Only show start job if player doesn't have a truck
+        local vehicle = GetVehiclePedIsIn(PlayerPedId(), false)
+        local hasTruck = (towVehicle and DoesEntityExist(towVehicle)) or (vehicle and isTowVehicle(vehicle))
+        if not hasTruck and (not VehicleSpawned or not NpcOn) then
+            MainMenu[#MainMenu+1] = { 
+                header = Lang:t("menu.start_job"), 
+                txt = Lang:t("menu.start_job_desc"), 
+                event = 'qb-tow:client:StartJob'
+            }
+        end
+        -- Add return truck option if player has a truck
+        if hasTruck then
+            if not CurrentTow then
+                MainMenu[#MainMenu+1] = { 
+                    header = Lang:t("menu.return_truck"), 
+                    txt = Lang:t("menu.return_truck_desc"), 
+                    event = 'qb-tow:client:ReturnTruck'
+                }
+            end
+        end
+        
+        -- Open NUI Menu with stats
+        isMenuOpen = true
+        SetNuiFocus(true, true)
+        SendNUIMessage({
+            action = 'openMenu',
+            options = MainMenu,
+            stats = stats
+        })
+    end)
+    
+    -- Fallback timeout in case callback fails
+    CreateThread(function()
+        Wait(2000) -- Wait 2 seconds
+        if not statsLoaded and not isMenuOpen then
+            -- Open menu with default stats if callback didn't respond
+            local MainMenu = {}
+            MainMenu[#MainMenu+1] = {isMenuHeader = true, header = Lang:t("menu.header")}
+            MainMenu[#MainMenu+1] = { 
+                header = Lang:t("menu.collect"), 
+                txt = Lang:t("menu.return_collect"), 
+                event = 'qb-tow:client:PaySlip'
+            }
+            local vehicle = GetVehiclePedIsIn(PlayerPedId(), false)
+            local hasTruck = (towVehicle and DoesEntityExist(towVehicle)) or (vehicle and isTowVehicle(vehicle))
+            if not hasTruck and (not VehicleSpawned or not NpcOn) then
+                MainMenu[#MainMenu+1] = { 
+                    header = Lang:t("menu.start_job"), 
+                    txt = Lang:t("menu.start_job_desc"), 
+                    event = 'qb-tow:client:StartJob'
+                }
+            end
+            if hasTruck and not CurrentTow then
+                MainMenu[#MainMenu+1] = { 
+                    header = Lang:t("menu.return_truck"), 
+                    txt = Lang:t("menu.return_truck_desc"), 
+                    event = 'qb-tow:client:ReturnTruck'
+                }
+            end
+            
+            isMenuOpen = true
+            SetNuiFocus(true, true)
+            SendNUIMessage({
+                action = 'openMenu',
+                options = MainMenu,
+                stats = defaultStats
+            })
+        end
+    end)
+end)
+
+RegisterNetEvent('qb-tow:client:StartJob', function()
+    if CurrentTow ~= nil then
+        QBCore.Functions.Notify(Lang:t("error.finish_work"), "error")
+        return
+    end
+    
+    -- Check if player already has a truck
+    local vehicle = GetVehiclePedIsIn(PlayerPedId(), false)
+    if (towVehicle and DoesEntityExist(towVehicle)) or (vehicle and isTowVehicle(vehicle)) then
+        QBCore.Functions.Notify(Lang:t("error.already_have_truck"), "error")
+        return
+    end
+    
+    -- Need to get a truck first
+    local vehicleInfo = "flatbed"
+    TriggerServerEvent('qb-tow:server:DoBail', true, vehicleInfo)
+    selectedVeh = vehicleInfo
 end)
 
 RegisterNetEvent('qb-tow:client:SpawnNPCVehicle', function()

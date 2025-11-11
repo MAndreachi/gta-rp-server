@@ -97,99 +97,29 @@ local function initBlips()
 end
 
 local function openCityhallMenu()
-    local mainMenu = {
-        {
-            header = 'City Hall',
-            isMenuHeader = true
-        },
-        {
-            header = 'ID Card',
-            txt = 'Get your ID Card',
-            params = {
-                event = 'qb-cityhall:client:openIdentityMenu'
-            }
-        },
-        {
-            header = 'Job Center',
-            txt = 'Available Jobs',
-            params = {
-                event = 'qb-cityhall:client:openJobMenu'
-            }
-        },
-        {
-            header = 'Close Menu',
-            txt = '',
-            params = {
-                event = 'qb-menu:client:closeMenu'
-            }
-        }
-    }
-
-    exports['qb-menu']:openMenu(mainMenu)
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'openMainMenu'
+    })
 end
 
 local function openIdentityMenu()
     QBCore.Functions.TriggerCallback('qb-cityhall:server:getIdentityData', function(licenses)
-        local identityMenu = {
-            {
-                header = 'Identity',
-                isMenuHeader = true
-            },
-            {
-                header = '← Go Back',
-                params = {
-                    event = 'qb-cityhall:client:openCityhallMenu'
-                }
-            }
-        }
-
-        for license, data in pairs(licenses) do
-            table.insert(identityMenu, {
-                header = data.label,
-                txt = 'Cost: $' .. data.cost,
-                params = {
-                    event = 'qb-cityhall:client:requestId',
-                    args = {
-                        type = license,
-                        cost = data.cost
-                    }
-                }
-            })
-        end
-
-        exports['qb-menu']:openMenu(identityMenu)
+        SetNuiFocus(true, true)
+        SendNUIMessage({
+            action = 'openIdentityMenu',
+            licenses = licenses
+        })
     end, closestCityhall)
 end
 
 local function openJobMenu()
     QBCore.Functions.TriggerCallback('qb-cityhall:server:receiveJobs', function(jobs)
-        local jobMenu = {
-            {
-                header = 'Job Center',
-                isMenuHeader = true
-            },
-            {
-                header = '← Go Back',
-                params = {
-                    event = 'qb-cityhall:client:openCityhallMenu'
-                }
-            }
-        }
-
-        for jobName, jobData in pairs(jobs) do
-            table.insert(jobMenu, {
-                header = jobData.label,
-                txt = 'Apply for this job',
-                params = {
-                    event = 'qb-cityhall:client:applyJob',
-                    args = {
-                        job = jobName
-                    }
-                }
-            })
-        end
-
-        exports['qb-menu']:openMenu(jobMenu)
+        SetNuiFocus(true, true)
+        SendNUIMessage({
+            action = 'openJobMenu',
+            jobs = jobs
+        })
     end)
 end
 
@@ -208,64 +138,34 @@ local function spawnPeds()
         SetBlockingOfNonTemporaryEvents(ped, true)
         TaskStartScenarioInPlace(ped, current.scenario, true, true)
         current.pedHandle = ped
-        if Config.UseTarget then
-            local opts = nil
-            if current.drivingschool then
-                opts = {
-                    label = 'Take Driving Lessons',
-                    icon = 'fa-solid fa-car-side',
-                    action = function()
-                        TriggerServerEvent('qb-cityhall:server:sendDriverTest', Config.DrivingSchools[closestDrivingSchool].instructors)
-                    end
-                }
-            elseif current.cityhall then
-                opts = {
-                    label = 'Open Cityhall',
-                    icon = 'fa-solid fa-city',
-                    action = function()
-                        inRangeCityhall = true
-                        openCityhallMenu()
-                    end
-                }
-            end
-            if opts then
-                exports['qb-target']:AddTargetEntity(ped, {
-                    options = { opts },
-                    distance = 2.0
-                })
-            end
-        else
-            local options = current.zoneOptions
-            if options then
-                local zone = BoxZone:Create(current.coords.xyz, options.length, options.width, {
-                    name = 'zone_cityhall_' .. ped,
-                    heading = current.coords.w,
-                    debugPoly = false,
-                    minZ = current.coords.z - 3.0,
-                    maxZ = current.coords.z + 2.0
-                })
-                zone:onPlayerInOut(function(inside)
-                    if isLoggedIn and closestCityhall and closestDrivingSchool then
-                        if inside then
-                            if current.drivingschool then
-                                inRangeDrivingSchool = true
-                                exports['qb-core']:DrawText('[E] Take Driving Lessons')
-                            elseif current.cityhall then
-                                inRangeCityhall = true
-                                exports['qb-core']:DrawText('[E] Open Cityhall')
-                            end
-                        else
-                            exports['qb-core']:HideText()
-                            if current.drivingschool then
-                                inRangeDrivingSchool = false
-                            elseif current.cityhall then
-                                inRangeCityhall = false
-                            end
-                        end
-                    end
-                end)
-            end
+        -- Always use qb-target
+        local opts = nil
+        if current.drivingschool then
+            opts = {
+                label = 'Take Driving Lessons',
+                icon = 'fa-solid fa-car-side',
+                action = function()
+                    TriggerServerEvent('qb-cityhall:server:sendDriverTest', Config.DrivingSchools[closestDrivingSchool].instructors)
+                end
+            }
+        elseif current.cityhall then
+            opts = {
+                label = 'City Services',
+                icon = 'fa-solid fa-city',
+                action = function()
+                    inRangeCityhall = true
+                    openCityhallMenu()
+                end
+            }
         end
+        if opts then
+            exports['qb-target']:AddTargetEntity(ped, {
+                options = { opts },
+                distance = 2.0
+            })
+        end
+        
+        -- Old drawtext system removed - now using qb-target only
     end
     pedsSpawned = true
 end
@@ -337,6 +237,51 @@ RegisterNetEvent('qb-cityhall:client:applyJob', function(data)
     end
 end)
 
+-- NUI Callbacks
+RegisterNUICallback('applyJob', function(data, cb)
+    if inRangeCityhall then
+        TriggerServerEvent('qb-cityhall:server:ApplyJob', data.job, Config.Cityhalls[closestCityhall].coords)
+        SetNuiFocus(false, false)
+        cb('ok')
+    else
+        QBCore.Functions.Notify(Lang:t('error.not_in_range'), 'error')
+        SetNuiFocus(false, false)
+        cb('error')
+    end
+end)
+
+RegisterNUICallback('close', function(data, cb)
+    SetNuiFocus(false, false)
+    cb('ok')
+end)
+
+RegisterNUICallback('openJobMenu', function(data, cb)
+    openJobMenu()
+    cb('ok')
+end)
+
+RegisterNUICallback('openIdentityMenu', function(data, cb)
+    openIdentityMenu()
+    cb('ok')
+end)
+
+RegisterNUICallback('requestId', function(data, cb)
+    if inRangeCityhall then
+        local license = Config.Cityhalls[closestCityhall].licenses[data.type]
+        if license and data.cost == license.cost then
+            TriggerServerEvent('qb-cityhall:server:requestId', data.type, closestCityhall)
+            QBCore.Functions.Notify(('You have received your %s for $%s'):format(license.label, data.cost), 'success', 3500)
+            cb('ok')
+        else
+            QBCore.Functions.Notify(Lang:t('error.not_in_range'), 'error')
+            cb('error')
+        end
+    else
+        QBCore.Functions.Notify(Lang:t('error.not_in_range'), 'error')
+        cb('error')
+    end
+end)
+
 RegisterNetEvent('qb-cityhall:client:sendDriverEmail', function(charinfo)
     SetTimeout(math.random(2500, 4000), function()
         local gender = Lang:t('email.mr')
@@ -375,31 +320,5 @@ end)
 CreateThread(function()
     initBlips()
     spawnPeds()
-    if not Config.UseTarget then
-        while true do
-            local sleep = 1000
-            if isLoggedIn and closestCityhall and closestDrivingSchool then
-                if inRangeCityhall then
-                    sleep = 0
-                    if IsControlJustPressed(0, 38) then
-                        openCityhallMenu()
-                        exports['qb-core']:KeyPressed()
-                        Wait(500)
-                        exports['qb-core']:HideText()
-                        sleep = 1000
-                    end
-                elseif inRangeDrivingSchool then
-                    sleep = 0
-                    if IsControlJustPressed(0, 38) then
-                        TriggerServerEvent('qb-cityhall:server:sendDriverTest', Config.DrivingSchools[closestDrivingSchool].instructors)
-                        sleep = 5000
-                        exports['qb-core']:KeyPressed()
-                        Wait(500)
-                        exports['qb-core']:HideText()
-                    end
-                end
-            end
-            Wait(sleep)
-        end
-    end
+    -- Using qb-target only, no key press thread needed
 end)

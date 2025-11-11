@@ -51,6 +51,13 @@ local Translations = {
         ["picking_bag"] = "Grabbing garbage bag..",
         ["talk"] = "[E] Talk to Garbage Man",
     },
+    xp = {
+        ["gained"] = "+%{xp} XP (Total: %{total})",
+        ["level_up"] = "Level Up! You are now Level %{level} - %{label}",
+        ["bag_bonus"] = "+%{value} XP (Bags)",
+        ["route_bonus"] = "+%{value} XP (Route Complete)",
+        ["time_bonus"] = "+%{value} XP (Quick Route)",
+    },
 }
 
 Lang = Lang or Locale:new({
