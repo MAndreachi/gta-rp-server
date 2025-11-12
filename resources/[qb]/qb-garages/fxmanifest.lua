@@ -24,11 +24,9 @@ server_scripts {
     'server/main.lua'
 }
 
-ui_page 'html/index.html'
+ui_page 'web/dist/index.html'
 
 files {
-    'html/index.html',
-    'html/script.js',
-    'html/style.css',
-    'html/logo.png',
+    'web/dist/index.html',
+    'web/dist/assets/**',
 }

@@ -42,14 +42,39 @@ local function OpenGarageMenu(data)
                 type = data.type,
                 index = data.indexgarage,
                 depotPrice = v.depotprice or 0,
-                balance = v.balance or 0
+                balance = v.balance or 0,
+                currentGarage = v.garage or nil
             }
         end
+        
+        -- Get list of available garages for transfer
+        local availableGarages = {}
+        -- Add current garage first
+        if Config.Garages[data.indexgarage] and (Config.Garages[data.indexgarage].type == 'public' or Config.Garages[data.indexgarage].type == 'house') then
+            availableGarages[#availableGarages + 1] = {
+                index = data.indexgarage,
+                label = Config.Garages[data.indexgarage].label,
+                type = Config.Garages[data.indexgarage].type
+            }
+        end
+        -- Add other garages
+        for garageIndex, garageData in pairs(Config.Garages) do
+            if garageIndex ~= data.indexgarage and (garageData.type == 'public' or garageData.type == 'house') then
+                availableGarages[#availableGarages + 1] = {
+                    index = garageIndex,
+                    label = garageData.label,
+                    type = garageData.type
+                }
+            end
+        end
+        
         SetNuiFocus(true, true)
         SendNUIMessage({
             action = 'VehicleList',
             garageLabel = Config.Garages[data.indexgarage].label,
+            currentGarageIndex = data.indexgarage,
             vehicles = formattedVehicles,
+            availableGarages = availableGarages,
         })
     end, data.indexgarage, data.type, data.category)
 end
@@ -260,6 +285,11 @@ RegisterNUICallback('takeOutDepo', function(data, cb)
     cb('ok')
 end)
 
+RegisterNUICallback('transferVehicle', function(data, cb)
+    TriggerServerEvent('qb-garages:server:transferVehicle', data)
+    cb('ok')
+end)
+
 -- Events
 
 RegisterNetEvent('qb-garages:client:trackVehicle', function(coords)
@@ -460,3 +490,4 @@ end)
 RegisterNetEvent('QBCore:Client:OnJobUpdate', function(job)
     PlayerJob = job
 end)
+

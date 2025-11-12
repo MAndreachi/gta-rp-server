@@ -84,9 +84,22 @@ QBCore.Functions.CreateCallback('qb-garages:server:GetGarageVehicles', function(
     if type == 'depot' then
         vehicles = MySQL.rawExecute.await('SELECT * FROM player_vehicles WHERE citizenid = ? AND depotprice > 0', { citizenId })
     elseif Config.SharedGarages then
+        -- Shared garages: show all vehicles
         vehicles = MySQL.rawExecute.await('SELECT * FROM player_vehicles WHERE citizenid = ?', { citizenId })
     else
-        vehicles = MySQL.rawExecute.await('SELECT * FROM player_vehicles WHERE citizenid = ? AND garage = ?', { citizenId, garage })
+        -- Garage-specific: show vehicles in this garage AND vehicles in other garages (for transfer)
+        -- Vehicles in other garages can only be transferred, not retrieved
+        local vehiclesInGarage = MySQL.rawExecute.await('SELECT * FROM player_vehicles WHERE citizenid = ? AND garage = ?', { citizenId, garage })
+        local vehiclesInOtherGarages = MySQL.rawExecute.await('SELECT * FROM player_vehicles WHERE citizenid = ? AND garage != ? AND garage IS NOT NULL AND state = 1', { citizenId, garage })
+        
+        -- Combine both lists
+        vehicles = {}
+        for _, v in ipairs(vehiclesInGarage) do
+            vehicles[#vehicles + 1] = v
+        end
+        for _, v in ipairs(vehiclesInOtherGarages) do
+            vehicles[#vehicles + 1] = v
+        end
     end
     if #vehicles == 0 then
         cb(nil)
@@ -215,6 +228,60 @@ RegisterNetEvent('qb-garages:server:PayDepotPrice', function(data)
             end
         end
     end)
+end)
+
+RegisterNetEvent('qb-garages:server:transferVehicle', function(data)
+    local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    if not Player then return end
+    
+    local plate = data.plate
+    local targetGarage = data.targetGarage
+    local transferCost = Config.TransferCost or 100
+    
+    -- Verify vehicle ownership
+    local vehicleData = MySQL.single.await('SELECT * FROM player_vehicles WHERE plate = ? AND citizenid = ?', { plate, Player.PlayerData.citizenid })
+    if not vehicleData then
+        TriggerClientEvent('QBCore:Notify', src, Lang:t('error.not_owned'), 'error')
+        return
+    end
+    
+    -- Check if vehicle is in garage (state = 1)
+    if vehicleData.state ~= 1 then
+        TriggerClientEvent('QBCore:Notify', src, 'Vehicle must be in a garage to transfer', 'error')
+        return
+    end
+    
+    -- Check if target garage exists
+    if not Config.Garages[targetGarage] then
+        TriggerClientEvent('QBCore:Notify', src, 'Invalid garage selected', 'error')
+        return
+    end
+    
+    -- Check if already in target garage
+    if vehicleData.garage == targetGarage then
+        TriggerClientEvent('QBCore:Notify', src, 'Vehicle is already in this garage', 'error')
+        return
+    end
+    
+    -- Check player has enough money
+    local cashBalance = Player.PlayerData.money['cash']
+    local bankBalance = Player.PlayerData.money['bank']
+    
+    if cashBalance >= transferCost then
+        Player.Functions.RemoveMoney('cash', transferCost, 'vehicle-transfer')
+    elseif bankBalance >= transferCost then
+        Player.Functions.RemoveMoney('bank', transferCost, 'vehicle-transfer')
+    else
+        TriggerClientEvent('QBCore:Notify', src, Lang:t('error.not_enough'), 'error')
+        return
+    end
+    
+    -- Update vehicle garage
+    MySQL.update('UPDATE player_vehicles SET garage = ? WHERE plate = ? AND citizenid = ?', { targetGarage, plate, Player.PlayerData.citizenid })
+    
+    local targetGarageLabel = Config.Garages[targetGarage] and Config.Garages[targetGarage].label or targetGarage
+    TriggerClientEvent('QBCore:Notify', src, 'Vehicle transferred to ' .. targetGarageLabel .. ' successfully', 'success')
 end)
 
 -- House Garages
