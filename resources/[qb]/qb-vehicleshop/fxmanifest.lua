@@ -25,3 +25,10 @@ server_scripts {
     '@oxmysql/lib/MySQL.lua',
     'server.lua'
 }
+
+ui_page 'web/dist/index.html'
+
+files {
+    'web/dist/index.html',
+    'web/dist/assets/**',
+}

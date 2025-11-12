@@ -9,6 +9,32 @@ local ClosestVehicle = 1
 local zones = {}
 local insideShop, tempShop = nil, nil
 
+-- Categories that should not be available at dealerships
+local excludedCategories = {
+    ['boats'] = true,
+    ['helicopters'] = true,
+    ['planes'] = true,
+    ['military'] = true,
+    ['emergency'] = true,
+    ['trains'] = true,
+    ['submarines'] = true,
+    ['commercial'] = true,      -- Commercial trucks and vans
+    ['industrial'] = true,       -- Construction/industrial vehicles
+    ['utility'] = true,          -- Utility/work vehicles
+    ['service'] = true,          -- Service vehicles
+    ['cycles'] = true,           -- Bicycles
+    ['trailer'] = true,          -- Trailers
+}
+
+-- Vehicle types that should not be available at dealerships
+local excludedTypes = {
+    ['submarine'] = true,
+    ['train'] = true,
+    ['heli'] = true,
+    ['plane'] = true,
+    ['boat'] = true,
+}
+
 -- Handlers
 AddEventHandler('QBCore:Client:OnPlayerLoaded', function()
     PlayerData = QBCore.Functions.GetPlayerData()
@@ -196,49 +222,74 @@ local function startTestDriveTimer(testDriveTime, prevCoords)
     end)
 end
 
-local function createVehZones(shopName, entity)
-    if not Config.UsingTarget then
-        for i = 1, #Config.Shops[shopName]['ShowroomVehicles'] do
-            zones[#zones + 1] = BoxZone:Create(
-                vector3(Config.Shops[shopName]['ShowroomVehicles'][i]['coords'].x,
-                    Config.Shops[shopName]['ShowroomVehicles'][i]['coords'].y,
-                    Config.Shops[shopName]['ShowroomVehicles'][i]['coords'].z),
-                Config.Shops[shopName]['Zone']['size'],
-                Config.Shops[shopName]['Zone']['size'],
-                {
-                    name = 'box_zone_' .. shopName .. '_' .. i,
-                    minZ = Config.Shops[shopName]['Zone']['minZ'],
-                    maxZ = Config.Shops[shopName]['Zone']['maxZ'],
-                    debugPoly = false,
-                })
-        end
-        local combo = ComboZone:Create(zones, { name = 'vehCombo', debugPoly = false })
-        combo:onPlayerInOut(function(isPointInside)
-            if isPointInside then
-                if PlayerData and PlayerData.job and (PlayerData.job.name == Config.Shops[insideShop]['Job'] or Config.Shops[insideShop]['Job'] == 'none') then
-                    exports['qb-menu']:showHeader(vehHeaderMenu)
-                end
-            else
-                exports['qb-menu']:closeMenu()
-            end
-        end)
-    else
-        exports['qb-target']:AddTargetEntity(entity, {
-            options = {
-                {
-                    type = 'client',
-                    event = 'qb-vehicleshop:client:showVehOptions',
-                    icon = 'fas fa-car',
-                    label = Lang:t('general.vehinteraction'),
-                    canInteract = function()
-                        local closestShop = insideShop
-                        return closestShop and (Config.Shops[closestShop]['Job'] == 'none' or PlayerData.job.name == Config.Shops[closestShop]['Job'])
-                    end
-                },
-            },
-            distance = 3.0
+local vehicleZones = {}
+local isInVehicleZone = false
+local currentVehicleZone = nil
+local zoneThreads = {}
+
+local function createVehZone(shopName, vehicleIndex)
+    -- Create a zone for a specific vehicle
+    local zoneKey = shopName .. '_' .. vehicleIndex
+    if vehicleZones[zoneKey] then return end -- Already created
+    
+    local vehCoords = Config.Shops[shopName]['ShowroomVehicles'][vehicleIndex]['coords']
+    -- Use a slightly larger zone size for better detection
+    local zoneSize = Config.Shops[shopName]['Zone']['size'] or 2.75
+    local zone = BoxZone:Create(
+        vector3(vehCoords.x, vehCoords.y, vehCoords.z),
+        zoneSize,
+        zoneSize,
+        {
+            name = 'box_zone_' .. shopName .. '_' .. vehicleIndex,
+            minZ = Config.Shops[shopName]['Zone']['minZ'],
+            maxZ = Config.Shops[shopName]['Zone']['maxZ'],
+            debugPoly = false,
         })
-    end
+    
+    zone:onPlayerInOut(function(isPointInside)
+        if isPointInside then
+            -- Check if player data is loaded and job requirement is met
+            local playerJob = PlayerData and PlayerData.job and PlayerData.job.name or nil
+            local shopJob = Config.Shops[shopName]['Job']
+            local canAccess = (shopJob == 'none' or playerJob == shopJob)
+            
+            if canAccess then
+                isInVehicleZone = true
+                currentVehicleZone = { shop = shopName, index = vehicleIndex }
+                exports['qb-core']:DrawText('[E] Browse Vehicles', 'left')
+                
+                -- Kill any existing thread for this zone
+                if zoneThreads[zoneKey] then
+                    zoneThreads[zoneKey] = nil
+                end
+                
+                -- Create new thread for E key detection
+                zoneThreads[zoneKey] = CreateThread(function()
+                    while isInVehicleZone and currentVehicleZone and currentVehicleZone.shop == shopName and currentVehicleZone.index == vehicleIndex do
+                        Wait(0)
+                        if IsControlJustReleased(0, 38) then -- E key
+                            exports['qb-core']:HideText()
+                            -- Get the currently displayed vehicle for this slot
+                            local displayedVehicle = Config.Shops[shopName]['ShowroomVehicles'][vehicleIndex].chosenVehicle
+                            TriggerEvent('qb-vehicleshop:client:openShop', shopName, displayedVehicle)
+                            break
+                        end
+                    end
+                end)
+            end
+        else
+            if currentVehicleZone and currentVehicleZone.shop == shopName and currentVehicleZone.index == vehicleIndex then
+                isInVehicleZone = false
+                currentVehicleZone = nil
+                exports['qb-core']:HideText()
+                if zoneThreads[zoneKey] then
+                    zoneThreads[zoneKey] = nil
+                end
+            end
+        end
+    end)
+    
+    vehicleZones[zoneKey] = zone
 end
 
 -- Zones
@@ -408,16 +459,23 @@ end
 function Init()
     Initialized = true
     CreateThread(function()
+        -- Wait for player data to be loaded
+        while not PlayerData or not PlayerData.citizenid do
+            Wait(100)
+        end
+        
+        -- Create finance zones (still needed for financed vehicle payments)
         for name, shop in pairs(Config.Shops) do
-            if shop['Type'] == 'free-use' then
-                createFreeUseShop(shop['Zone']['Shape'], name)
-            elseif shop['Type'] == 'managed' then
-                createManagedShop(shop['Zone']['Shape'], name)
-            end
             if shop['FinanceZone'] then createFinanceZone(shop['FinanceZone'], name) end
         end
     end)
     CreateThread(function()
+        -- Wait for player data to be loaded
+        while not PlayerData or not PlayerData.citizenid do
+            Wait(100)
+        end
+        
+        -- Spawn display vehicles and create individual zones for each
         for k in pairs(Config.Shops) do
             for i = 1, #Config.Shops[k]['ShowroomVehicles'] do
                 local model = GetHashKey(Config.Shops[k]['ShowroomVehicles'][i].defaultVehicle)
@@ -434,20 +492,382 @@ function Init()
                 SetEntityHeading(veh, Config.Shops[k]['ShowroomVehicles'][i].coords.w)
                 FreezeEntityPosition(veh, true)
                 SetVehicleNumberPlateText(veh, 'BUY ME')
-                if Config.UsingTarget then createVehZones(k, veh) end
+                -- Create individual zone for this specific vehicle
+                createVehZone(k, i)
             end
-            if not Config.UsingTarget then createVehZones(k) end
         end
     end)
 end
 
--- Events
+-- Cache for vehicle stat ranges (calculated once)
+local vehicleStatRanges = nil
+
+-- Function to calculate min/max ranges from all vehicles
+local function CalculateVehicleStatRanges()
+    if vehicleStatRanges then
+        return vehicleStatRanges -- Return cached ranges
+    end
+    
+    local ranges = {
+        topSpeed = { min = math.huge, max = 0 },
+        acceleration = { min = math.huge, max = 0 },
+        braking = { min = math.huge, max = 0 },
+        handling = { min = math.huge, max = 0 },
+        traction = { min = math.huge, max = 0 },
+        mass = { min = math.huge, max = 0 }
+    }
+    
+    local vehiclesScanned = 0
+    local maxScan = 50 -- Limit scanning to prevent lag, sample vehicles
+    
+    -- Sample vehicles to find ranges
+    for k, v in pairs(QBCore.Shared.Vehicles) do
+        if vehiclesScanned >= maxScan then break end
+        
+        local vehicleShop = v.shop
+        local vehicleCategory = v.category or 'compacts'
+        local vehicleType = v.type or 'automobile'
+        
+        -- Only scan vehicles that would be in dealerships
+        if vehicleShop ~= 'none' 
+            and not excludedCategories[vehicleCategory] 
+            and not excludedTypes[vehicleType] then
+            
+            local modelHash = GetHashKey(v.model or k)
+            if IsModelInCdimage(modelHash) then
+                RequestModel(modelHash)
+                local timeout = 0
+                while not HasModelLoaded(modelHash) and timeout < 50 do
+                    Wait(1)
+                    timeout = timeout + 1
+                end
+                
+                if HasModelLoaded(modelHash) then
+                    local tempVeh = CreateVehicle(modelHash, 0.0, 0.0, 0.0, 0.0, false, false)
+                    if DoesEntityExist(tempVeh) then
+                        local topSpeed = GetVehicleHandlingFloat(tempVeh, 'CHandlingData', 'fInitialDriveMaxFlatVel')
+                        local acceleration = GetVehicleHandlingFloat(tempVeh, 'CHandlingData', 'fInitialDriveForce')
+                        local braking = GetVehicleHandlingFloat(tempVeh, 'CHandlingData', 'fBrakeForce')
+                        local traction = GetVehicleHandlingFloat(tempVeh, 'CHandlingData', 'fTractionCurveMax')
+                        local handling = GetVehicleHandlingFloat(tempVeh, 'CHandlingData', 'fSteeringLock')
+                        local mass = GetVehicleHandlingFloat(tempVeh, 'CHandlingData', 'fMass')
+                        
+                        -- Update ranges
+                        ranges.topSpeed.min = math.min(ranges.topSpeed.min, topSpeed)
+                        ranges.topSpeed.max = math.max(ranges.topSpeed.max, topSpeed)
+                        ranges.acceleration.min = math.min(ranges.acceleration.min, acceleration)
+                        ranges.acceleration.max = math.max(ranges.acceleration.max, acceleration)
+                        ranges.braking.min = math.min(ranges.braking.min, braking)
+                        ranges.braking.max = math.max(ranges.braking.max, braking)
+                        ranges.handling.min = math.min(ranges.handling.min, handling)
+                        ranges.handling.max = math.max(ranges.handling.max, handling)
+                        ranges.traction.min = math.min(ranges.traction.min, traction)
+                        ranges.traction.max = math.max(ranges.traction.max, traction)
+                        ranges.mass.min = math.min(ranges.mass.min, mass)
+                        ranges.mass.max = math.max(ranges.mass.max, mass)
+                        
+                        DeleteEntity(tempVeh)
+                        vehiclesScanned = vehiclesScanned + 1
+                    end
+                    SetModelAsNoLongerNeeded(modelHash)
+                end
+            end
+        end
+    end
+    
+    -- Fallback to reasonable defaults if no vehicles were scanned
+    if vehiclesScanned == 0 then
+        ranges.topSpeed = { min = 50, max = 200 }
+        ranges.acceleration = { min = 0.1, max = 0.5 }
+        ranges.braking = { min = 0.3, max = 1.5 }
+        ranges.handling = { min = 20, max = 50 }
+        ranges.traction = { min = 1.0, max = 3.0 }
+        ranges.mass = { min = 500, max = 5000 }
+    end
+    
+    vehicleStatRanges = ranges
+    return ranges
+end
+
+-- Function to calculate vehicle statistics
+local function GetVehicleStats(vehicleModel)
+    local modelHash = GetHashKey(vehicleModel)
+    if not IsModelInCdimage(modelHash) then
+        return nil
+    end
+    
+    -- Get stat ranges (will calculate on first call, then cache)
+    local ranges = CalculateVehicleStatRanges()
+    
+    -- Request model
+    RequestModel(modelHash)
+    local timeout = 0
+    while not HasModelLoaded(modelHash) and timeout < 100 do
+        Wait(10)
+        timeout = timeout + 1
+    end
+    
+    if not HasModelLoaded(modelHash) then
+        return nil
+    end
+    
+    -- Create temporary vehicle to get stats
+    local tempVeh = CreateVehicle(modelHash, 0.0, 0.0, 0.0, 0.0, false, false)
+    if not DoesEntityExist(tempVeh) then
+        SetModelAsNoLongerNeeded(modelHash)
+        return nil
+    end
+    
+    -- Get handling data
+    local topSpeed = GetVehicleHandlingFloat(tempVeh, 'CHandlingData', 'fInitialDriveMaxFlatVel')
+    local acceleration = GetVehicleHandlingFloat(tempVeh, 'CHandlingData', 'fInitialDriveForce')
+    local braking = GetVehicleHandlingFloat(tempVeh, 'CHandlingData', 'fBrakeForce')
+    local traction = GetVehicleHandlingFloat(tempVeh, 'CHandlingData', 'fTractionCurveMax')
+    local handling = GetVehicleHandlingFloat(tempVeh, 'CHandlingData', 'fSteeringLock')
+    local mass = GetVehicleHandlingFloat(tempVeh, 'CHandlingData', 'fMass')
+    
+    -- Clean up
+    DeleteEntity(tempVeh)
+    SetModelAsNoLongerNeeded(modelHash)
+    
+    -- Convert to user-friendly units and return actual values
+    -- Top speed: fInitialDriveMaxFlatVel is theoretical max velocity in m/s
+    -- Actual achievable top speed in-game is much lower due to drag, gear ratios, etc.
+    -- Based on in-game testing: theoretical values are ~2.9-3.1x higher than actual speed
+    -- Converting m/s to mph: m/s * 2.237 = mph (theoretical)
+    -- Then scaling down by ~0.32-0.34 to match actual in-game performance
+    -- Formula: m/s * 2.237 * 0.33 ≈ m/s * 0.738 for realistic mph
+    -- Calibrated based on test: fastest car (xeno) shows ~364 theoretical, achieves ~120 actual
+    local topSpeedMph = math.floor(topSpeed * 0.738)
+    
+    -- Acceleration: force value (keep as is, will display as relative)
+    local accelerationValue = math.floor(acceleration * 100) / 100
+    
+    -- Braking: force value (keep as is)
+    local brakingValue = math.floor(braking * 100) / 100
+    
+    -- Handling: steering lock angle in degrees
+    local handlingDegrees = math.floor(handling)
+    
+    -- Traction: traction curve max (keep as is)
+    local tractionValue = math.floor(traction * 100) / 100
+    
+    -- Mass: convert to kg
+    local massKg = math.floor(mass)
+    
+    -- Calculate normalized values for progress bars (0-100)
+    local function normalize(value, min, max)
+        if max == min then return 50 end -- Avoid division by zero
+        local normalized = ((value - min) / (max - min)) * 100
+        return math.max(0, math.min(100, math.floor(normalized)))
+    end
+    
+    local stats = {
+        topSpeed = topSpeedMph, -- Actual mph value
+        acceleration = accelerationValue, -- Actual acceleration force
+        braking = brakingValue, -- Actual brake force
+        handling = handlingDegrees, -- Actual steering lock degrees
+        traction = tractionValue, -- Actual traction value
+        mass = massKg, -- Actual mass in kg
+        -- Normalized values for progress bars
+        topSpeedPercent = normalize(topSpeed, ranges.topSpeed.min, ranges.topSpeed.max),
+        accelerationPercent = normalize(acceleration, ranges.acceleration.min, ranges.acceleration.max),
+        brakingPercent = normalize(braking, ranges.braking.min, ranges.braking.max),
+        handlingPercent = normalize(handling, ranges.handling.min, ranges.handling.max),
+        tractionPercent = normalize(traction, ranges.traction.min, ranges.traction.max)
+    }
+    
+    return stats
+end
+
+-- Open shop menu
+RegisterNetEvent('qb-vehicleshop:client:openShop', function(shopName, displayedVehicleModel)
+    if not shopName then shopName = insideShop end
+    if not shopName then return end
+    
+    insideShop = shopName
+    
+    -- Get all available vehicles
+    local vehicles = {}
+    local categories = {}
+    local makes = {}
+    
+    for k, v in pairs(QBCore.Shared.Vehicles) do
+        local vehicleShop = QBCore.Shared.Vehicles[k]['shop']
+        local vehicleCategory = v.category or 'compacts'
+        local vehicleType = v.type or 'automobile'
+        
+        -- Skip vehicles that shouldn't be at dealerships
+        if vehicleShop ~= 'none' 
+            and not excludedCategories[vehicleCategory] 
+            and not excludedTypes[vehicleType] then
+            local vehicle = {
+                model = v.model or k,
+                name = v.name,
+                brand = v.brand,
+                price = v.price,
+                category = vehicleCategory,
+                type = vehicleType
+            }
+            vehicles[#vehicles + 1] = vehicle
+            categories[vehicleCategory] = true
+            makes[v.brand] = true
+        end
+    end
+    
+    local playerData = QBCore.Functions.GetPlayerData()
+    local shopData = {
+        shopName = shopName,
+        shopLabel = Config.Shops[shopName]['ShopLabel'],
+        vehicles = vehicles,
+        categories = {},
+        makes = {},
+        playerCash = playerData.money.cash or 0,
+        playerBank = playerData.money.bank or 0,
+        displayedVehicle = displayedVehicleModel -- Pass the currently displayed vehicle model
+    }
+    
+    -- Convert sets to arrays
+    for cat, _ in pairs(categories) do
+        shopData.categories[#shopData.categories + 1] = cat
+    end
+    for make, _ in pairs(makes) do
+        shopData.makes[#shopData.makes + 1] = make
+    end
+    
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'openShop',
+        shopData = shopData
+    })
+end)
+
+-- Get vehicle statistics callback
+RegisterNUICallback('getVehicleStats', function(data, cb)
+    local stats = GetVehicleStats(data.vehicle)
+    cb({ success = stats ~= nil, stats = stats })
+end)
+
+-- NUI Callbacks
+RegisterNUICallback('closeShop', function(_, cb)
+    SetNuiFocus(false, false)
+    insideShop = nil
+    cb('ok')
+end)
+
+RegisterNUICallback('buyVehicle', function(data, cb)
+    TriggerServerEvent('qb-vehicleshop:server:buyShowroomVehicle', { 
+        buyVehicle = data.vehicle, 
+        shopName = insideShop,
+        primaryColor = data.primaryColor or 0,
+        secondaryColor = data.secondaryColor or 0
+    })
+    cb({ success = true, message = 'Vehicle purchased successfully!' })
+end)
+
+RegisterNUICallback('financeVehicle', function(data, cb)
+    TriggerServerEvent('qb-vehicleshop:server:financeVehicle', 
+        data.downPayment, 
+        data.payments, 
+        data.vehicle,
+        data.primaryColor or 0,
+        data.secondaryColor or 0
+    )
+    cb({ success = true, message = 'Vehicle financed successfully!' })
+end)
+
+RegisterNUICallback('previewVehicle', function(data, cb)
+    local shopName = insideShop
+    if not shopName then
+        cb({ success = false, message = 'No shop selected' })
+        return
+    end
+    
+    -- Find the closest showroom slot
+    local playerCoords = GetEntityCoords(PlayerPedId())
+    local closestSlot = 1
+    local closestDistance = math.huge
+    
+    for i = 1, #Config.Shops[shopName]['ShowroomVehicles'] do
+        local slotCoords = Config.Shops[shopName]['ShowroomVehicles'][i].coords
+        local distance = #(playerCoords - vector3(slotCoords.x, slotCoords.y, slotCoords.z))
+        if distance < closestDistance then
+            closestDistance = distance
+            closestSlot = i
+        end
+    end
+    
+    -- Swap the vehicle in the showroom with colors
+    -- Ensure colors are numbers - check if they exist first
+    local primaryColor = 0
+    local secondaryColor = 0
+    
+    if data.primaryColor ~= nil then
+        primaryColor = tonumber(data.primaryColor) or 0
+    end
+    if data.secondaryColor ~= nil then
+        secondaryColor = tonumber(data.secondaryColor) or 0
+    end
+    
+    TriggerServerEvent('qb-vehicleshop:server:swapVehicle', {
+        toVehicle = data.vehicle,
+        ClosestVehicle = closestSlot,
+        ClosestShop = shopName,
+        primaryColor = primaryColor,
+        secondaryColor = secondaryColor
+    })
+    
+    cb({ success = true, message = 'Vehicle previewed in showroom!' })
+end)
+
+RegisterNUICallback('testDrive', function(data, cb)
+    if not inTestDrive then
+        inTestDrive = true
+        local prevCoords = GetEntityCoords(PlayerPedId())
+        local shopName = insideShop
+        tempShop = shopName
+        
+        QBCore.Functions.TriggerCallback('qb-vehicleshop:server:spawnvehicle', function(netId, properties, vehPlate)
+            local timeout = 5000
+            local startTime = GetGameTimer()
+            while not NetworkDoesNetworkIdExist(netId) do
+                Wait(10)
+                if GetGameTimer() - startTime > timeout then
+                    inTestDrive = false
+                    cb({ success = false, message = 'Failed to spawn test vehicle' })
+                    return
+                end
+            end
+            local veh = NetworkGetEntityFromNetworkId(netId)
+            NetworkRequestControlOfEntity(veh)
+            SetEntityAsMissionEntity(veh, true, true)
+            Citizen.InvokeNative(0xAD738C3085FE7E11, veh, true, true)
+            SetVehicleNumberPlateText(veh, vehPlate)
+            SetVehicleDirtLevel(veh, 0.0)
+            exports['LegacyFuel']:SetFuel(veh, 100)
+            TriggerEvent('vehiclekeys:client:SetOwner', vehPlate)
+            TaskWarpPedIntoVehicle(PlayerPedId(), veh, -1)
+            SetVehicleEngineOn(veh, true, true, false)
+            testDriveVeh = netId
+            createTestDriveReturn()
+            startTestDriveTimer(Config.Shops[tempShop]['TestDriveTimeLimit'] * 60, prevCoords)
+            cb({ success = true, message = 'Test drive started!' })
+        end, 'TESTDRIVE', data.vehicle, Config.Shops[shopName]['TestDriveSpawn'], true)
+    else
+        cb({ success = false, message = 'You are already in a test drive!' })
+    end
+end)
+
+-- Events (keeping for compatibility)
 RegisterNetEvent('qb-vehicleshop:client:homeMenu', function()
-    exports['qb-menu']:openMenu(vehicleMenu)
+    -- Deprecated - using NUI now
 end)
 
 RegisterNetEvent('qb-vehicleshop:client:showVehOptions', function()
-    exports['qb-menu']:openMenu(vehicleMenu, true, true)
+    -- Deprecated - using NUI now
+    if insideShop then
+        TriggerEvent('qb-vehicleshop:client:openShop', insideShop)
+    end
 end)
 
 RegisterNetEvent('qb-vehicleshop:client:TestDrive', function()
@@ -469,6 +889,7 @@ RegisterNetEvent('qb-vehicleshop:client:TestDrive', function()
             SetEntityAsMissionEntity(veh, true, true)
             Citizen.InvokeNative(0xAD738C3085FE7E11, veh, true, true)
             SetVehicleNumberPlateText(veh, vehPlate)
+            SetVehicleDirtLevel(veh, 0.0)
             exports['LegacyFuel']:SetFuel(veh, 100)
             TriggerEvent('vehiclekeys:client:SetOwner', vehPlate)
             TaskWarpPedIntoVehicle(PlayerPedId(), veh, -1)
@@ -504,6 +925,7 @@ RegisterNetEvent('qb-vehicleshop:client:customTestDrive', function(data)
             SetEntityAsMissionEntity(veh, true, true)
             Citizen.InvokeNative(0xAD738C3085FE7E11, veh, true, true)
             SetVehicleNumberPlateText(veh, vehPlate)
+            SetVehicleDirtLevel(veh, 0.0)
             exports['LegacyFuel']:SetFuel(veh, 100)
             TriggerEvent('vehiclekeys:client:SetOwner', vehPlate)
             TaskWarpPedIntoVehicle(PlayerPedId(), veh, -1)
@@ -546,19 +968,18 @@ RegisterNetEvent('qb-vehicleshop:client:vehCategories', function(data)
         }
     }
     for k, v in pairs(QBCore.Shared.Vehicles) do
-        if type(QBCore.Shared.Vehicles[k]['shop']) == 'table' then
-            for _, shop in pairs(QBCore.Shared.Vehicles[k]['shop']) do
-                if shop == insideShop and (not Config.FilterByMake or QBCore.Shared.Vehicles[k]['brand'] == data.make) then
-                    catmenu[v.category] = v.category
-                    if firstvalue == nil then
-                        firstvalue = v.category
-                    end
-                end
-            end
-        elseif QBCore.Shared.Vehicles[k]['shop'] == insideShop and (not Config.FilterByMake or QBCore.Shared.Vehicles[k]['brand'] == data.make) then
-            catmenu[v.category] = v.category
+        -- Show all vehicles except those with shop = 'none' and excluded categories
+        local vehicleShop = QBCore.Shared.Vehicles[k]['shop']
+        local vehicleCategory = v.category or 'compacts'
+        local vehicleType = v.type or 'automobile'
+        
+        if vehicleShop ~= 'none' 
+            and not excludedCategories[vehicleCategory] 
+            and not excludedTypes[vehicleType]
+            and (not Config.FilterByMake or QBCore.Shared.Vehicles[k]['brand'] == data.make) then
+            catmenu[vehicleCategory] = vehicleCategory
             if firstvalue == nil then
-                firstvalue = v.category
+                firstvalue = vehicleCategory
             end
         end
     end
@@ -600,27 +1021,15 @@ RegisterNetEvent('qb-vehicleshop:client:openVehCats', function(data)
         }
     end
     for k, v in pairs(QBCore.Shared.Vehicles) do
-        if QBCore.Shared.Vehicles[k]['category'] == data.catName then
-            if type(QBCore.Shared.Vehicles[k]['shop']) == 'table' then
-                for _, shop in pairs(QBCore.Shared.Vehicles[k]['shop']) do
-                    if shop == insideShop then
-                        vehMenu[#vehMenu + 1] = {
-                            header = v.name,
-                            txt = Lang:t('menus.veh_price') .. v.price,
-                            icon = 'fa-solid fa-car-side',
-                            params = {
-                                isServer = true,
-                                event = 'qb-vehicleshop:server:swapVehicle',
-                                args = {
-                                    toVehicle = v.model,
-                                    ClosestVehicle = ClosestVehicle,
-                                    ClosestShop = insideShop
-                                }
-                            }
-                        }
-                    end
-                end
-            elseif QBCore.Shared.Vehicles[k]['shop'] == insideShop then
+        local vehicleCategory = QBCore.Shared.Vehicles[k]['category'] or 'compacts'
+        local vehicleType = QBCore.Shared.Vehicles[k]['type'] or 'automobile'
+        
+        if vehicleCategory == data.catName then
+            -- Show all vehicles except those with shop = 'none' and excluded categories
+            local vehicleShop = QBCore.Shared.Vehicles[k]['shop']
+            if vehicleShop ~= 'none' 
+                and not excludedCategories[vehicleCategory] 
+                and not excludedTypes[vehicleType] then
                 vehMenu[#vehMenu + 1] = {
                     header = v.name,
                     txt = Lang:t('menus.veh_price') .. v.price,
@@ -653,13 +1062,14 @@ RegisterNetEvent('qb-vehicleshop:client:vehMakes', function()
         }
     }
     for k, v in pairs(QBCore.Shared.Vehicles) do
-        if type(QBCore.Shared.Vehicles[k]['shop']) == 'table' then
-            for _, shop in pairs(QBCore.Shared.Vehicles[k]['shop']) do
-                if shop == insideShop then
-                    makmenu[v.brand] = v.brand
-                end
-            end
-        elseif QBCore.Shared.Vehicles[k]['shop'] == insideShop then
+        -- Show all vehicles except those with shop = 'none' and excluded categories
+        local vehicleShop = QBCore.Shared.Vehicles[k]['shop']
+        local vehicleCategory = v.category or 'compacts'
+        local vehicleType = v.type or 'automobile'
+        
+        if vehicleShop ~= 'none' 
+            and not excludedCategories[vehicleCategory] 
+            and not excludedTypes[vehicleType] then
             makmenu[v.brand] = v.brand
         end
     end
@@ -736,6 +1146,10 @@ end)
 
 RegisterNetEvent('qb-vehicleshop:client:swapVehicle', function(data)
     local shopName = data.ClosestShop
+    
+    local primaryColor = tonumber(data.primaryColor) or 0
+    local secondaryColor = tonumber(data.secondaryColor) or 0
+    
     if Config.Shops[shopName]['ShowroomVehicles'][data.ClosestVehicle].chosenVehicle ~= data.toVehicle then
         local closestVehicle, closestDistance = QBCore.Functions.GetClosestVehicle(vector3(Config.Shops[shopName]['ShowroomVehicles'][data.ClosestVehicle].coords.x, Config.Shops[shopName]['ShowroomVehicles'][data.ClosestVehicle].coords.y, Config.Shops[shopName]['ShowroomVehicles'][data.ClosestVehicle].coords.z))
         if closestVehicle == 0 then return end
@@ -760,22 +1174,73 @@ RegisterNetEvent('qb-vehicleshop:client:swapVehicle', function(data)
         SetVehicleDoorsLocked(veh, 3)
         FreezeEntityPosition(veh, true)
         SetVehicleNumberPlateText(veh, 'BUY ME')
+        SetVehicleDirtLevel(veh, 0.0)
+        
+        -- Wait a frame to ensure vehicle is fully initialized
+        Wait(200)
+        
+        -- Apply colors using QBCore's SetVehicleProperties which handles colors correctly
+        local vehProps = {
+            color1 = primaryColor,
+            color2 = secondaryColor
+        }
+        QBCore.Functions.SetVehicleProperties(veh, vehProps)
+        
         if Config.UsingTarget then createVehZones(shopName, veh) end
+    else
+        -- Vehicle is already displayed, but update colors if they changed
+        local closestVehicle, closestDistance = QBCore.Functions.GetClosestVehicle(vector3(Config.Shops[shopName]['ShowroomVehicles'][data.ClosestVehicle].coords.x, Config.Shops[shopName]['ShowroomVehicles'][data.ClosestVehicle].coords.y, Config.Shops[shopName]['ShowroomVehicles'][data.ClosestVehicle].coords.z))
+        if closestVehicle ~= 0 and closestDistance < 5 then
+            Wait(100)
+            
+            -- Apply colors using QBCore's SetVehicleProperties which handles colors correctly
+            local vehProps = {
+                color1 = primaryColor,
+                color2 = secondaryColor
+            }
+            QBCore.Functions.SetVehicleProperties(closestVehicle, vehProps)
+        end
     end
 end)
 
-RegisterNetEvent('qb-vehicleshop:client:buyShowroomVehicle', function(vehicle, plate)
-    tempShop = insideShop -- temp hacky way of setting the shop because it changes after the callback has returned since you are outside the zone
+RegisterNetEvent('qb-vehicleshop:client:buyShowroomVehicle', function(vehicle, plate, spawnLocation, primaryColor, secondaryColor)
+    local shopName = insideShop or tempShop
+    local spawnCoords = spawnLocation or (shopName and Config.Shops[shopName] and Config.Shops[shopName]['VehicleSpawn']) or vector4(0, 0, 0, 0)
+    
+    if spawnCoords == vector4(0, 0, 0, 0) then
+        QBCore.Functions.Notify('Error: No spawn location found', 'error')
+        return
+    end
+    
     QBCore.Functions.TriggerCallback('qb-vehicleshop:server:spawnvehicle', function(netId, properties, vehPlate)
         while not NetworkDoesNetworkIdExist(netId) do Wait(10) end
         local veh = NetworkGetEntityFromNetworkId(netId)
         Citizen.Await(CheckPlate(veh, vehPlate))
-        QBCore.Functions.SetVehicleProperties(veh, properties)
+        
+        -- Apply colors if provided (always apply, 0 is valid for black)
+        local currentProps = QBCore.Functions.GetVehicleProperties(veh)
+        if primaryColor ~= nil then
+            currentProps.color1 = primaryColor
+        end
+        if secondaryColor ~= nil then
+            currentProps.color2 = secondaryColor
+        end
+        -- Merge with any other properties from the database
+        if properties then
+            for k, v in pairs(properties) do
+                if k ~= 'color1' and k ~= 'color2' then
+                    currentProps[k] = v
+                end
+            end
+        end
+        QBCore.Functions.SetVehicleProperties(veh, currentProps)
+        SetVehicleDirtLevel(veh, 0.0)
+        
         exports['LegacyFuel']:SetFuel(veh, 100)
         TriggerEvent('vehiclekeys:client:SetOwner', vehPlate)
         TaskWarpPedIntoVehicle(PlayerPedId(), veh, -1)
         SetVehicleEngineOn(veh, true, true, false)
-    end, plate, vehicle, Config.Shops[tempShop]['VehicleSpawn'], true)
+    end, plate, vehicle, spawnCoords, true)
 end)
 
 RegisterNetEvent('qb-vehicleshop:client:getVehicles', function()
@@ -783,7 +1248,8 @@ RegisterNetEvent('qb-vehicleshop:client:getVehicles', function()
         local ownedVehicles = {}
         for _, v in pairs(vehicles) do
             local vehData = QBCore.Shared.Vehicles[v.vehicle]
-            if v.balance ~= 0 and vehData.shop == insideShop then
+            -- Show all financed vehicles regardless of shop
+            if v.balance ~= 0 and vehData then
                 local plate = v.plate:upper()
                 ownedVehicles[#ownedVehicles + 1] = {
                     header = vehData.name,

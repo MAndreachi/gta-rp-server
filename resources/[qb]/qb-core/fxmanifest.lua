@@ -14,6 +14,7 @@ shared_scripts {
     'shared/items.lua',
     'shared/jobs.lua',
     'shared/vehicles.lua',
+    'shared/custom_vehicles.lua', -- Load custom vehicles after main vehicles
     'shared/gangs.lua',
     'shared/weapons.lua',
     'shared/locations.lua'
