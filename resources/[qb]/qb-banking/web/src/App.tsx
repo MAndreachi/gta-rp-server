@@ -61,6 +61,7 @@ export default function App() {
 	const [activeView, setActiveView] = React.useState<'overview' | 'transact' | 'accounts' | 'services' | 'analytics'>('overview')
 	const [analyticsTimeRange, setAnalyticsTimeRange] = React.useState<'7d' | '30d' | '90d' | 'all'>('30d')
 	const [transactType, setTransactType] = React.useState<'deposit' | 'withdraw' | 'internal' | 'external'>('deposit')
+	const [atmTransactType, setAtmTransactType] = React.useState<'deposit' | 'withdraw'>('withdraw')
 	const [accounts, setAccounts] = React.useState<Account[]>([])
 	const [statements, setStatements] = React.useState<Record<string, Statement[]>>({})
 	const [selectedAccountStatement, setSelectedAccountStatement] = React.useState('checking')
@@ -193,6 +194,10 @@ export default function App() {
 			id: acc.id
 		}))
 		setAccounts(accountsList)
+		setAtmTransactType('withdraw')
+		setSelectedMoneyAccount(null)
+		setSelectedMoneyAmount(0)
+		setMoneyReason('')
 		setIsATMOpen(true)
 	}
 
@@ -245,6 +250,10 @@ export default function App() {
 			setIsBankOpen(false)
 		} else if (isATMOpen) {
 			setIsATMOpen(false)
+			setAtmTransactType('withdraw')
+			setSelectedMoneyAccount(null)
+			setSelectedMoneyAmount(0)
+			setMoneyReason('')
 		} else if (showPinPrompt) {
 			setShowPinPrompt(false)
 			setEnteredPin('')
@@ -1503,46 +1512,114 @@ export default function App() {
 
 						{/* Main Content */}
 						<div className="flex-1 flex flex-col p-4">
-							<h3 className="text-lg font-semibold text-white mb-4">Withdraw</h3>
-							<div className="space-y-4">
-								<div>
-									<label className="block text-xs text-[#888] mb-1">Account:</label>
-									<select
-										value={selectedMoneyAccount?.name || ''}
-										onChange={(e) => setSelectedMoneyAccount(accounts.find(a => a.name === e.target.value) || null)}
-										className="w-full rounded border border-[#2a2a2a] bg-[#0f0f0f] px-3 py-2 text-sm text-white focus:border-[#4a4a4a] focus:outline-none"
+							{/* Transaction Type Selector */}
+							<div className="flex items-center justify-center gap-2 mb-6">
+								{[
+									{ id: 'deposit', label: 'Deposit' },
+									{ id: 'withdraw', label: 'Withdraw' }
+								].map(type => (
+									<button
+										key={type.id}
+										onClick={() => setAtmTransactType(type.id as 'deposit' | 'withdraw')}
+										className={cn(
+											"rounded border px-4 py-2 text-xs font-medium transition-colors",
+											atmTransactType === type.id
+												? "border-green-600 bg-green-600/20 text-green-400"
+												: "border-[#2a2a2a] bg-[#0f0f0f] text-white hover:bg-[#2a2a2a]"
+										)}
 									>
-										<option value="">Select Account</option>
-										{accounts.map(acc => (
-											<option key={acc.name} value={acc.name}>{acc.name}</option>
-										))}
-									</select>
-								</div>
-								<div>
-									<label className="block text-xs text-[#888] mb-1">Amount:</label>
-									<input
-										type="number"
-										value={selectedMoneyAmount || ''}
-										onChange={(e) => setSelectedMoneyAmount(Number(e.target.value))}
-										className="w-full rounded border border-[#2a2a2a] bg-[#0f0f0f] px-3 py-2 text-sm text-white focus:border-[#4a4a4a] focus:outline-none"
-									/>
-								</div>
-								<div>
-									<label className="block text-xs text-[#888] mb-1">Reason:</label>
-									<input
-										type="text"
-										value={moneyReason}
-										onChange={(e) => setMoneyReason(e.target.value)}
-										className="w-full rounded border border-[#2a2a2a] bg-[#0f0f0f] px-3 py-2 text-sm text-white focus:border-[#4a4a4a] focus:outline-none"
-									/>
-								</div>
-								<button
-									onClick={withdrawMoney}
-									className="w-full rounded border border-red-600 bg-red-600/20 px-4 py-2 text-sm font-medium text-white hover:bg-red-600/30 transition-colors"
-								>
-									Withdraw
-								</button>
+										{type.label}
+									</button>
+								))}
 							</div>
+
+							{/* Deposit */}
+							{atmTransactType === 'deposit' && (
+								<div className="space-y-4">
+									<h3 className="text-lg font-semibold text-white mb-4">Deposit Money</h3>
+									<div>
+										<label className="block text-xs text-[#888] mb-1">To Account:</label>
+										<select
+											value={selectedMoneyAccount?.name || ''}
+											onChange={(e) => setSelectedMoneyAccount(accounts.find(a => a.name === e.target.value) || null)}
+											className="w-full rounded border border-[#2a2a2a] bg-[#0f0f0f] px-3 py-2 text-sm text-white focus:border-[#4a4a4a] focus:outline-none"
+										>
+											<option value="">Select Account</option>
+											{accounts.map(acc => (
+												<option key={acc.name} value={acc.name}>{acc.name}</option>
+											))}
+										</select>
+									</div>
+									<div>
+										<label className="block text-xs text-[#888] mb-1">Amount:</label>
+										<input
+											type="number"
+											value={selectedMoneyAmount || ''}
+											onChange={(e) => setSelectedMoneyAmount(Number(e.target.value))}
+											className="w-full rounded border border-[#2a2a2a] bg-[#0f0f0f] px-3 py-2 text-sm text-white focus:border-[#4a4a4a] focus:outline-none"
+										/>
+									</div>
+									<div>
+										<label className="block text-xs text-[#888] mb-1">Reason:</label>
+										<input
+											type="text"
+											value={moneyReason}
+											onChange={(e) => setMoneyReason(e.target.value)}
+											className="w-full rounded border border-[#2a2a2a] bg-[#0f0f0f] px-3 py-2 text-sm text-white focus:border-[#4a4a4a] focus:outline-none"
+										/>
+									</div>
+									<button
+										onClick={depositMoney}
+										className="w-full rounded border border-green-600 bg-green-600/20 px-4 py-2 text-sm font-medium text-white hover:bg-green-600/30 transition-colors"
+									>
+										Deposit
+									</button>
+								</div>
+							)}
+
+							{/* Withdraw */}
+							{atmTransactType === 'withdraw' && (
+								<div className="space-y-4">
+									<h3 className="text-lg font-semibold text-white mb-4">Withdraw Money</h3>
+									<div>
+										<label className="block text-xs text-[#888] mb-1">From Account:</label>
+										<select
+											value={selectedMoneyAccount?.name || ''}
+											onChange={(e) => setSelectedMoneyAccount(accounts.find(a => a.name === e.target.value) || null)}
+											className="w-full rounded border border-[#2a2a2a] bg-[#0f0f0f] px-3 py-2 text-sm text-white focus:border-[#4a4a4a] focus:outline-none"
+										>
+											<option value="">Select Account</option>
+											{accounts.map(acc => (
+												<option key={acc.name} value={acc.name}>{acc.name}</option>
+											))}
+										</select>
+									</div>
+									<div>
+										<label className="block text-xs text-[#888] mb-1">Amount:</label>
+										<input
+											type="number"
+											value={selectedMoneyAmount || ''}
+											onChange={(e) => setSelectedMoneyAmount(Number(e.target.value))}
+											className="w-full rounded border border-[#2a2a2a] bg-[#0f0f0f] px-3 py-2 text-sm text-white focus:border-[#4a4a4a] focus:outline-none"
+										/>
+									</div>
+									<div>
+										<label className="block text-xs text-[#888] mb-1">Reason:</label>
+										<input
+											type="text"
+											value={moneyReason}
+											onChange={(e) => setMoneyReason(e.target.value)}
+											className="w-full rounded border border-[#2a2a2a] bg-[#0f0f0f] px-3 py-2 text-sm text-white focus:border-[#4a4a4a] focus:outline-none"
+										/>
+									</div>
+									<button
+										onClick={withdrawMoney}
+										className="w-full rounded border border-red-600 bg-red-600/20 px-4 py-2 text-sm font-medium text-white hover:bg-red-600/30 transition-colors"
+									>
+										Withdraw
+									</button>
+								</div>
+							)}
 						</div>
 					</div>
 				</div>
